@@ -18,8 +18,9 @@ import java.util.List;
 
 import com.binrock.sqlutil.Row;
 import com.binrock.sqlutil.SQLUtilInterface;
-import com.binrock.sqlutil.exception.SQLSingleRowQueryReturnedMoreThanOneRowsException;
-import com.binrock.sqlutil.exception.SQLSingleRowQueryReturnedNoRowException;
+import com.binrock.sqlutil.exception.ReturnedMoreThanOneRowException;
+import com.binrock.sqlutil.exception.ReturnedNoRowException;
+import com.binrock.sqlutil.exception.SingleRowQueryException;
 
 public class SQLUtil implements SQLUtilInterface {
 
@@ -338,10 +339,10 @@ public class SQLUtil implements SQLUtilInterface {
 		throw new UnsupportedOperationException();
 	}
 
-	private void expectOneRow(Row[] rows) throws SQLException {
+	private void expectOneRow(Row[] rows) throws SingleRowQueryException {
 		if (rows==null) throw new IllegalArgumentException("paramater l must have a value");
-		if (rows.length>1) throw new SQLSingleRowQueryReturnedMoreThanOneRowsException();
-		if (rows.length==0) throw new SQLSingleRowQueryReturnedNoRowException();
+		if (rows.length>1) throw new ReturnedMoreThanOneRowException();
+		if (rows.length==0) throw new ReturnedNoRowException();
 	}
 
 	@Override
