@@ -1,15 +1,14 @@
 package com.binrock.sqlutil.impl;
 
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.Calendar;
 
-import java.sql.Date;
-
 public final class BindHelper {
-	
+
 	public static PreparedStatement bindString(PreparedStatement ps, int pos, String val) throws SQLException {
 		if (val != null)
 			ps.setString(pos, val);
@@ -74,6 +73,11 @@ public final class BindHelper {
 		return ps;
 	}
 
+    public static PreparedStatement bindDate(PreparedStatement ps, int pos, java.util.Date val, Calendar calendar) throws SQLException {
+        return bindSQLDate(ps, pos, val==null?null:new Date(val.getTime()), calendar);
+    }
+
+
 	public static PreparedStatement bindSQLDate(PreparedStatement ps, int pos, Date val, Calendar calendar) throws SQLException {
 		if (val != null) {
 			if (calendar == null)
@@ -104,7 +108,7 @@ public final class BindHelper {
 			ps.setNull(pos, Types.TIMESTAMP);
 		return ps;
 	}
-	
+
 	private static int countNullElements(Object[] a) {
 		if (a == null)
 			return 0;
@@ -135,14 +139,14 @@ public final class BindHelper {
 			else if (o instanceof Date) t=Types.DATE;
 			else if (o instanceof java.sql.Time) t=Types.TIME;
 			else if (o instanceof java.util.Date || o instanceof java.sql.Timestamp) t=Types.TIMESTAMP;
-			else 
+			else
 				throw new SQLException(
 						"cannot map opbject to java.sql.Types: Object class=" + o.getClass().getName());
 			types[i] = t;
 		}
 		return types;
 	}
-	
+
 	private static void verifyNotMatchingClassesAndBindings(Object[] vals, int[] bindTypes) {
 		if (vals == null)
 			return;
@@ -154,7 +158,7 @@ public final class BindHelper {
 			if (o == null)
 				continue;
 			if (o instanceof String) {
-				if (t != Types.CHAR && t != Types.VARCHAR && t != Types.LONGVARCHAR && 
+				if (t != Types.CHAR && t != Types.VARCHAR && t != Types.LONGVARCHAR &&
 					t != Types.NCHAR && t != Types.NVARCHAR && t != Types.LONGNVARCHAR)
 					throw new IllegalArgumentException(
 							"String must be mapped to Types.{CHAR|VARCHAR|LONGVARCHAR} (index="+i+")");
@@ -196,11 +200,11 @@ public final class BindHelper {
 			}
 		}
 	}
-	
+
 	protected static void bindVariables(PreparedStatement ps, Object[] bindVariables, int[] bindTypes, Calendar calendar) throws SQLException {
 		// try to be lazy
-		if (bindVariables==null || bindVariables.length==0) return;		
-		
+		if (bindVariables==null || bindVariables.length==0) return;
+
 		// check param combinations
 		if (bindTypes == null && countNullElements(bindVariables) > 0)
 			throw new IllegalArgumentException(
@@ -227,7 +231,13 @@ public final class BindHelper {
 				bindBigDecimal(ps, pos, (BigDecimal) val);
 				break;
 			case Types.DATE:
-				bindSQLDate(ps, pos, (Date) val, calendar);
+			    if (val!=null)
+			        if (val instanceof java.sql.Date)
+			            bindSQLDate(ps, pos, (Date) val, calendar);
+			        else
+                        bindDate(ps, pos, (java.util.Date) val, calendar);
+			    else
+                    bindSQLDate(ps, pos, (Date) val, calendar);
 				break;
 			case Types.FLOAT:
 			case Types.DOUBLE:

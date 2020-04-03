@@ -1,9 +1,13 @@
-package com.binrock.sqlutil;
+package com.binrock.sqlutil.impl;
 
 import java.sql.SQLException;
 import java.util.Hashtable;
 
-public class Query {
+import com.binrock.sqlutil.Row;
+import com.binrock.sqlutil.SQLUtilInterface;
+
+class Query {
+
 	private SQLUtilInterface sql;
 	private String selectStmt;
 	private Row[] rows;
@@ -30,7 +34,7 @@ public class Query {
 		rows = sql.getRows(colName2Idx, selectStmt, bindVariables, bindTypes);
 		return this;
 	}
-	
+
 	public Row[] getRows() {
 		return rows;
 	}

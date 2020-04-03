@@ -63,7 +63,7 @@ public final class ConversionHelper {
 	}
 
 	public static Double[] toDoubles(Row[] rows) {
-		Double[] arr = new Double[rows==null?0:rows.length]; 
+		Double[] arr = new Double[rows==null?0:rows.length];
 		if (rows==null) return arr;
 		int i=0;
 		for (Row row:rows) arr[i++]=row.getDouble(0);
@@ -96,13 +96,13 @@ public final class ConversionHelper {
 	}
 
 	public static BigDecimal[] toBigDecimals(Row[] rows) {
-		BigDecimal[] arr = new BigDecimal[rows==null?0:rows.length]; 
+		BigDecimal[] arr = new BigDecimal[rows==null?0:rows.length];
 		if (rows==null) return arr;
 		int i=0;
 		for (Row row:rows) arr[i++]=row.getBigDecimal(0);
 		return arr;
 	}
-	
+
 	public static byte[][] toRaws(Row[] rows) {
 		byte[][] arr = new byte[rows==null?0:rows.length][];
 		if (rows==null) return arr;
@@ -113,12 +113,11 @@ public final class ConversionHelper {
 				arr[i++] = test;
 			}
 		}
-		//throw new IllegalStateException("not implemented");
 		return arr;
 	}
 
 	public static Long[] toLongs(Row[] rows) {
-		Long[] arr = new Long[rows==null?0:rows.length]; 
+		Long[] arr = new Long[rows==null?0:rows.length];
 		if (rows==null) return arr;
 		int i=0;
 		for (Row row:rows) arr[i++]=row.getLong(0);
@@ -126,7 +125,7 @@ public final class ConversionHelper {
 	}
 
 	public static Timestamp[] toTimestamps(Row[] rows) {
-		Timestamp[] arr = new Timestamp[rows==null?0:rows.length]; 
+		Timestamp[] arr = new Timestamp[rows==null?0:rows.length];
 		if (rows==null) return arr;
 		int i=0;
 		for (Row row:rows) arr[i++]=row.getTimestamp(0);
@@ -138,7 +137,7 @@ public final class ConversionHelper {
 	}
 
 	public static String[] toStrings(Row[] rows) {
-		String[] arr = new String[rows==null?0:rows.length]; 
+		String[] arr = new String[rows==null?0:rows.length];
 		if (rows==null) return arr;
 		int i=0;
 		for (Row row:rows) arr[i++]=row.getString(0);

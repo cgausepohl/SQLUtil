@@ -16,23 +16,23 @@ import java.util.Calendar;
 import java.util.Hashtable;
 import java.util.List;
 
+import com.binrock.sqlutil.AuditInterface;
 import com.binrock.sqlutil.Row;
 import com.binrock.sqlutil.SQLUtilInterface;
 import com.binrock.sqlutil.exception.ReturnedMoreThanOneRowException;
 import com.binrock.sqlutil.exception.ReturnedNoRowException;
 import com.binrock.sqlutil.exception.SingleRowQueryException;
 
-public class SQLUtil implements SQLUtilInterface {
+public final class SQLUtil implements SQLUtilInterface {
 
 	private Connection con;
-	//STATprivate Hashtable<String, ArrayList<ExecutionStatistics>> statisticsExecutionTiming = new Hashtable<>();
-	//STATprivate boolean doStatistics = false;
 	private Calendar calendar;
 	private ResultSetMetaData lastMetaData;
 	private Integer expectedRows, expectedColumns;
 	private int fetchSize=0;
-	private Hashtable<String, Integer> currentIterationColumnMap;
-	
+	private PrintStream stdout=System.out, stderr=System.err;
+	private AuditInterface audit = new Audit();
+
 	// batch
 	private ResultSet batchResultSet;
 	private PreparedStatement batchPreparedStatement;
@@ -40,40 +40,112 @@ public class SQLUtil implements SQLUtilInterface {
 	private Boolean batchResultSetDone;
 	private String batchSelectStmt;
 	private int[] batchResultTypes;
-	
-	enum DBProducts {POSTGRESQL, MYSQL, ORACLE, GENERIC};
+
+	// caches. if hashtable==null, cache is turned off. maxvalues<=0 results in unlimited cache.
+	private LRUCache lruStatementCache = new LRUCache();
+
+
+	@Override
+    public AuditInterface getAudit() {
+	    return audit;
+	}
+
+	private enum DBProducts {POSTGRESQL, MYSQL, ORACLE, GENERIC};
 	private DBProducts dbProduct = DBProducts.GENERIC;
 
 	public SQLUtil(Connection con) throws SQLException {
 		setConnection(con);
 	}
 
-//DEV
+    @Override
+    public void setStdout(PrintStream stdout) {
+        this.stdout = stdout;
+    }
+
+    @Override
+    public void setStderr(PrintStream stderr) {
+        this.stderr = stderr;
+    }
+
+    private void error(String msg, Throwable t) {
+        log(stderr, msg, null);
+    }
+
+    private void info(String msg) {
+        log(stdout, msg, null);
+    }
+
+    @SuppressWarnings("unused")
+    private void info(String msg, Throwable t) {
+        log(stdout, msg, t);
+    }
+
+    private void log(PrintStream ps, String msg, Throwable t) {
+        if (ps==null) return;
+        ps.println(msg);
+        if (t!=null) t.printStackTrace(ps);
+    }
+
+	private PreparedStatement getPreparedStatement(String sql) throws SQLException {
+	    if (lruStatementCache==null)
+	        return getConnection().prepareStatement(sql);
+	    PreparedStatement ps = lruStatementCache.get(sql);
+        if (ps!=null && ps.isClosed())
+            lruStatementCache.remove(sql);
+	    if (ps==null) {
+	        ps = getConnection().prepareStatement(sql);
+	        info("prepare:"+sql);
+	        lruStatementCache.add(sql, ps);
+	    }
+	    return ps;
+	}
+
 	@Override
-	public void prepareBatchMode(String selectStmt, int batchSize) throws SQLException {
+	public void enablePreparedStatementCache(boolean enable) throws SQLException {
+	    if (enable) {
+    	    if (lruStatementCache==null)
+    	        lruStatementCache = new LRUCache();
+	    } else {
+            if (lruStatementCache!=null) {
+                lruStatementCache.clear();
+                lruStatementCache = null;
+            }
+	    }
+	}
+
+	@Override
+	// cacheSize<=0 means no limit
+	public void setPreparedStatementCacheSize(int cacheSize) throws SQLException {
+	    if (lruStatementCache==null)
+	        enablePreparedStatementCache(true);
+        lruStatementCache.resize(cacheSize);
+	}
+
+//DEV (gaus20200329: why is this DEV?)
+	@Override
+	public void getChunksPrepare(String selectStmt, int batchSize) throws SQLException {
 		/* prepare PS+RS
 		 * metaData
 		 * colcount
 		 * typeMap?
 		 */
-				
+
 		// prepare, bind and execute
-		batchPreparedStatement = getConnection().prepareStatement(selectStmt);
+
+		batchPreparedStatement = getPreparedStatement(selectStmt);
 //FIXME?		batchPreparedStatement = BindHelper.bindVariables(batchPreparedStatement, null, null, getCalendar());
 		batchPreparedStatement.setFetchSize(fetchSize);
 		batchResultSet = batchPreparedStatement.executeQuery();
 		batchResultSet.setFetchSize(fetchSize);
-		
+
 		lastMetaData = batchResultSet.getMetaData();
 		batchColCount = lastMetaData.getColumnCount();
 		batchResultTypes = new int[batchColCount];
 		for (int i=1,n=0; i<=batchColCount; i++, n++) {
 			batchResultTypes[n] = lastMetaData.getColumnType(i);
 			// a little hack. SQL.INTEGER are mapped to java long. Java long must be mapped to SQL.BIGINT
-			if (batchResultTypes[n]==Types.INTEGER)
+			if (batchResultTypes[n] == Types.INTEGER)
 				batchResultTypes[n] = Types.BIGINT;
-//			if (currentIterationColumnMap!=null) 
-//				currentIterationColumnMap.put(batchResultSet.getMetaData().getColumnLabel(i), n);
 		}
 		if (expectedColumns!=null && expectedColumns!=batchColCount) {
 			throw new IllegalStateException("Expected columns: "+expectedColumns+", columns selected: "+batchColCount);
@@ -84,14 +156,14 @@ public class SQLUtil implements SQLUtilInterface {
 		batchResultSetDone = false;
 		batchSelectStmt = selectStmt;
 	}
-	
+
 	@Override
-	public Row[] getRowsBatch() throws SQLException {
+	public Row[] getChunksGetNextRows() throws SQLException {
 
 		if (batchResultSet==null || batchResultSet.isClosed())
 			throw new SQLException("current iteration not prepared (no call of prepareRowsIterated)");
 		if (batchResultSetDone) return null;
-		
+
 		int currBatchCounter=0;
 		ArrayList<Row> rowsList = new ArrayList<>(batchBatchSize);
 		while (true) {
@@ -101,16 +173,16 @@ public class SQLUtil implements SQLUtilInterface {
 				rowsList.add(new Row(row, /*columnMap*/null));
 				batchRowCount++;
 				currBatchCounter++;
-				if (currBatchCounter>=batchBatchSize) 
+				if (currBatchCounter>=batchBatchSize)
 					break;
 			} else {
 				batchResultSetDone = true;
 				break;
 			}
 		}
-		
+
 		if (rowsList.size()==0) return null;
-		
+
 		Row[] rows = new Row[rowsList.size()];
 		int i=0;
 		for (Row row: rowsList) {
@@ -119,16 +191,15 @@ public class SQLUtil implements SQLUtilInterface {
 		}
 		return rows;
 	}
-	
+
 	@Override
-	public void closeBatchMode() {
+	public void getChunksClose() {
 		/*
 		 * close RS/PS
 		 * set all batch* vars to -1/null
 		 */
 		closeSilent(batchResultSet);
 		closeSilent(batchPreparedStatement);
-		if (currentIterationColumnMap!=null) currentIterationColumnMap.clear();  // is this necessary/useful?
 		batchResultSet = null;
 		batchPreparedStatement = null;
 		batchColCount=-1;
@@ -139,11 +210,7 @@ public class SQLUtil implements SQLUtilInterface {
 		// batchResultTypes = null; can be requested from outside, after finishing
 	}
 //DEV
-	
-	
-	
-	
-	
+
 	private void setConnection(Connection con) throws SQLException {
 		this.con = con;
 		if (con==null) return;
@@ -153,23 +220,24 @@ public class SQLUtil implements SQLUtilInterface {
 		else
 			dbProduct = DBProducts.GENERIC;
 	}
-	
+
 	public Calendar getCalendar() {
 		return calendar;
 	}
 
 	@Override
 	public void closeConnection() {
-		//startExecutionTiming("createSQLUtil");
 		try {
+		    // close alle dependent caches
+		    if (lruStatementCache!=null)
+		        lruStatementCache.clear();
 			Connection c = getConnection();
 			if (c != null && !c.isClosed())
 				c.close();
 			setConnection(null);
 		} catch (SQLException ignore) {
-			//endExecutionTiming(sqle);
+            error("cannot close connection", ignore);
 		}
-		//endExecutionTiming();
 	}
 
 	@Override
@@ -191,7 +259,9 @@ public class SQLUtil implements SQLUtilInterface {
 	public void commitSilent()  {
 		try {
 			commit();
-		} catch (SQLException ignore) {}
+		} catch (SQLException ignore) {
+		    error("cannot commit. Connection="+getConnection(), ignore);
+		}
 	}
 
 	@Override
@@ -203,7 +273,9 @@ public class SQLUtil implements SQLUtilInterface {
 	public void rollbackSilent() {
 		try {
 			rollback();
-		} catch (SQLException ignore) {}
+		} catch (SQLException ignore) {
+            error("cannot rollback. Connection="+getConnection(), ignore);
+		}
 	}
 
 	@Override
@@ -215,22 +287,22 @@ public class SQLUtil implements SQLUtilInterface {
 	public void setCalendar(Calendar c) {
 		calendar = c;
 	}
-	
+
 	@Override
-	public ResultSetMetaData getLastMetaData() {
+	public ResultSetMetaData getPreviousMetaData() {
 		return lastMetaData;
 	}
-	
+
 	@Override
-	public int[] getLastRowSQLTypes() {
-		return batchResultTypes;
+	public int[] getPreviousRowSQLTypes() {
+		return batchResultTypes==null?null:batchResultTypes.clone();
 	}
-	
+
 	@Override
 	public void setFetchSize(int fetchSize) {
 		this.fetchSize = fetchSize;
 	}
-	
+
 	@Override
 	public int getFetchSize() {
 		return fetchSize;
@@ -238,115 +310,106 @@ public class SQLUtil implements SQLUtilInterface {
 
 	@Override
 	public void executeDDL(String ddlStmt) throws SQLException {
-		//STATExecutionStatistics stat = null;//createExecStats("execute:"+ddlStmt);
+	    getAudit().startNewAuditRecord(ddlStmt);
 		PreparedStatement ps = null;
 		try {
 			ps = getConnection().prepareStatement(ddlStmt);
 			ps.execute();
-			//STAT			if (stat!=null) stat.setResultOK();
 		} catch (SQLException sqle) {
-			//STATif (stat!=null) stat.setResultError(sqle.getMessage());
+            printError(System.out, sqle, ddlStmt, null, null);
+            getAudit().endAuditRecord(sqle);
 			throw sqle;
 		} finally {
 			closeSilent(ps);
+			getAudit().endAuditRecord();
 		}
 	}
 
-	
+
 	@Override
 	public void closeSilent(ResultSet rs) {
+	    if (rs==null) return;
 		try {
-			if (rs != null)
-				rs.close();
+			rs.close();
 		} catch (SQLException ignore) {
-		}
-	}
-	
-	@Override
-	public void closeSilent(Statement stmt) {
-		try {
-			if (stmt != null)
-				stmt.close();
-		} catch (SQLException ignore) {
+            error("cannot close ResultSet"+rs, ignore);
 		}
 	}
 
-	
+	@Override
+	public void closeSilent(Statement stmt) {
+	    if (stmt==null) return;
+		try {
+			stmt.close();
+		} catch (SQLException ignore) {
+		    error("cannot close Statement"+stmt, ignore);
+		}
+	}
+
+
 	@Override
 	public int[] executeDMLBatch(String dmlStmt, List<Object[]> batchValues, int[] bindTypes) throws SQLException {
+	    getAudit().startNewAuditRecord(dmlStmt);
 		PreparedStatement ps = null;
+		int[] affectedRows = null;
 		try {
-			ps = getConnection().prepareStatement(dmlStmt);
+			ps = getPreparedStatement(dmlStmt);
 			for (Object[] data: batchValues) {
 				BindHelper.bindVariables(ps, data, bindTypes, getCalendar());
 				ps.addBatch();
 			}
-			int[] affectedRows = ps.executeBatch();
+			affectedRows = ps.executeBatch();
 			return affectedRows;
+		} catch (SQLException sqle) {
+		    printError(System.out, sqle, dmlStmt, null, bindTypes);
+		    getAudit().endAuditRecord(sqle);
+		    throw sqle;
 		} finally {
-			closeSilent(ps);
+		    if (lruStatementCache==null)
+		        closeSilent(ps);
+            if (getAudit().isEnabled()) {
+                int rows=0;
+                for (int i=0; i<affectedRows.length; i++) rows+=affectedRows[i];
+                getAudit().endAuditRecord(rows);
+            }
 		}
 	}
 
 	@Override
 	public int[] executeDMLBatch(String dmlStmt, Row[] rows, int[] bindTypes) throws SQLException {
+	    getAudit().startNewAuditRecord(dmlStmt);
 		PreparedStatement ps = null;
+		int[] affectedRows = null;
 		try {
-			ps = getConnection().prepareStatement(dmlStmt);
+			ps = getPreparedStatement(dmlStmt);
 			for (Row row: rows) {
 				BindHelper.bindVariables(ps, row.getData(), bindTypes, getCalendar());
 				ps.addBatch();
 			}
-			int[] affectedRows = ps.executeBatch();
+			affectedRows = ps.executeBatch();
 			return affectedRows;
+		} catch (SQLException sqle) {
+		    printError(System.out, sqle, dmlStmt, null, bindTypes);
+		    getAudit().endAuditRecord(sqle);
+		    throw sqle;
 		} finally {
-			closeSilent(ps);
+            if (lruStatementCache==null)
+                closeSilent(ps);
+            if (getAudit().isEnabled()) {
+                int r=0;
+                for (int i=0; i<affectedRows.length; i++) r+=affectedRows[i];
+                getAudit().endAuditRecord(r);
+            }
 		}
 	}
 
-	@Override
-	public void enableTimings(boolean enable) {
-		//doStatistics = enable;
-	}
-
-	@Override
-	public void startExecutionTiming(String action) {
-		throw new UnsupportedOperationException();
-	}
-
-	@Override
-	public void endExecutionTiming() {
-		throw new UnsupportedOperationException();
-	}
-
-	@Override
-	public void endExecutionTiming(Throwable t) {
-		throw new UnsupportedOperationException();
-	}
-
-	@Override
-	public void flushAllTimings() {
-		throw new UnsupportedOperationException();
-	}
-
-	@Override
-	public void printTimingsSummary() {
-		//throw new UnsupportedOperationException();
-	}
-
-	@Override
-	public void printTimingsComplete() {
-		throw new UnsupportedOperationException();
-	}
-
-	private void expectOneRow(Row[] rows) throws SingleRowQueryException {
+    private void expectOneRow(Row[] rows) throws SingleRowQueryException {
 		if (rows==null) throw new IllegalArgumentException("paramater l must have a value");
 		if (rows.length>1) throw new ReturnedMoreThanOneRowException();
 		if (rows.length==0) throw new ReturnedNoRowException();
 	}
 
-	@Override
-	public void checkExactNumberRowsExpected(Row[] rows, int expectedRows) throws SQLException  {
+    public void checkExactNumberRowsExpected(Row[] rows, int expectedRows) throws SQLException  {
 		boolean ok = true;
 		if (rows == null || rows.length == 0)
 			if (expectedRows == 0)
@@ -379,16 +442,20 @@ public class SQLUtil implements SQLUtilInterface {
 	}
 	@Override
 	public void executeSP(String call, Object[] bindVariables, int[] bindTypes) throws SQLException  {
+        getAudit().startNewAuditRecord(call, bindVariables);
 		CallableStatement cs = null;
 		try {
 			cs = getConnection().prepareCall(call);
 			BindHelper.bindVariables(cs, bindVariables, bindTypes, getCalendar());
 			cs.execute();
-			cs.close();			
+			cs.close();
 		} catch (SQLException sqle) {
+            printError(System.out, sqle, call, bindVariables, bindTypes);
+            getAudit().endAuditRecord(sqle);
 			throw sqle;
 		} finally {
 			closeSilent(cs);
+			getAudit().endAuditRecord();
 		}
 	}
 
@@ -411,16 +478,22 @@ public class SQLUtil implements SQLUtilInterface {
 
 	@Override
 	public Integer executeDML(String dmlStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
+        getAudit().startNewAuditRecord(dmlStmt, bindVariables);
 		PreparedStatement ps = null;
+		int rows = -1;
 		try {
-			ps = getConnection().prepareStatement(dmlStmt);
+			ps = getPreparedStatement(dmlStmt);
 			BindHelper.bindVariables(ps, bindVariables, bindTypes, getCalendar());
-			int rows = ps.executeUpdate();
+			rows = ps.executeUpdate();
 			return rows;
 		} catch (SQLException sqle) {
+            printError(System.out, sqle, dmlStmt, bindVariables, bindTypes);
+            getAudit().endAuditRecord(sqle);
 			throw sqle;
 		} finally {
-			closeSilent(ps);
+		    if (lruStatementCache==null)
+		        closeSilent(ps);
+		    getAudit().endAuditRecord(rows);
 		}
 	}
 	//
@@ -437,16 +510,16 @@ public class SQLUtil implements SQLUtilInterface {
 	public Row[] getRows(String selectStmt) throws SQLException {
 		return getRows(selectStmt, null, null);
 	}
-	
+
 	@Override
 	public Row[] getRows(String selectStmt, Object[] bindVariables) throws SQLException {
 		return getRows(selectStmt, bindVariables, null);
 	}
-	
+
 	public Row[] getRows(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
 		return getRows(null, selectStmt, bindVariables, bindTypes);
 	}
-	
+
 	private Object[] convertResultRow2ObjectArray(ResultSet rs, int colCount, int rowCount, final int[] resultTypes, final String selectStmt) throws SQLException {
 		Object[] row = new Object[colCount];
 		Object v = null;
@@ -520,12 +593,14 @@ public class SQLUtil implements SQLUtilInterface {
 		}
 		return row;
 	}
-	
+
 	@Override
 	public Row[] getRows(Hashtable<String, Integer> columnMap, String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
+        getAudit().startNewAuditRecord(selectStmt, bindVariables);
 		PreparedStatement ps=null;
 		ResultSet rs = null;
 		ArrayList<Object[]> list = new ArrayList<>();
+        int rowCount = 0;
 		try {
 			// prepare, bind and execute
 			ps = getConnection().prepareStatement(selectStmt);
@@ -534,36 +609,38 @@ public class SQLUtil implements SQLUtilInterface {
 			rs = ps.executeQuery();
 			lastMetaData = rs.getMetaData();
 			rs.setFetchSize(fetchSize);
-			
+
 			// parse types of resultset
 			int colCount = rs.getMetaData().getColumnCount();
 			int[] resultTypes = new int[colCount];
 			for (int i=1,n=0; i<=colCount; i++, n++) {
 				resultTypes[n] = rs.getMetaData().getColumnType(i);
-				if (columnMap!=null) 
+				if (columnMap!=null)
 					columnMap.put(rs.getMetaData().getColumnLabel(i), n);
 			}
 			if (expectedColumns!=null && expectedColumns!=colCount) {
 				throw new IllegalStateException("Expected columns: "+expectedColumns+", columns selected: "+colCount);
 			}
-			
+
 			// fetch data
-			int rowCount = 0;
 			while (rs.next()) {
 				rowCount++;
 				Object[] row = convertResultRow2ObjectArray(rs, colCount, rowCount, resultTypes, selectStmt);
 				list.add(row);
 			}
-					
+
 		} catch (SQLException sqle) {
 			printError(System.out, sqle, selectStmt, bindVariables, bindTypes);
+            getAudit().endAuditRecord(sqle);
 			throw sqle;
 		} finally {
 			closeSilent(rs);
-			closeSilent(ps);
+			if (lruStatementCache==null)
+			    closeSilent(ps);
 			setExpectations(null, null);  // reset expectations
+			getAudit().endAuditRecord(rowCount);
 		}
-		
+
 		Row[] rows = new Row[list.size()];
 		int i=0;
 		for (Object[] rowData: list)
@@ -573,14 +650,13 @@ public class SQLUtil implements SQLUtilInterface {
 
 	//
 	// getRows
-
 	private enum ReturnType {STRING, DOUBLE, LONG, BIGDECIMAL, SQLDATE, SQLTIMESTAMP, BYTEARRAY};
 	private Object getObject(String selectStmt, ReturnType rt) throws SQLException {
-		//STATExecutionStatistics stat = null;//createExecStats("getValue("+rt+"):"+sql);
+        getAudit().startNewAuditRecord(selectStmt);
 		PreparedStatement ps = null;
 		ResultSet rs = null;
 		try {
-			ps = getConnection().prepareStatement(selectStmt);
+			ps = getPreparedStatement(selectStmt);
 			rs = ps.executeQuery();
 			rs.next();
 			Object v=null;
@@ -598,38 +674,46 @@ public class SQLUtil implements SQLUtilInterface {
 				throw new SQLException("single row query returned more than one row");
 			return v;
 		} catch (SQLException sqle) {
-			//STATif (stat!=null) stat.setResultError(sqle.getMessage());
+            printError(System.out, sqle, selectStmt, null, null);
+            getAudit().endAuditRecord(sqle);
 			throw sqle;
 		} finally {
 			closeSilent(rs);
-			closeSilent(ps);
-			//STATif (stat!=null) stat.setResultOK(1);
+			if (lruStatementCache==null)
+			    closeSilent(ps);
+            getAudit().endAuditRecord(1);
 		}
 	}
-	
+
 	// <T> get<T>(selectStmt)
 	//
-	public String getString(String selectStmt) throws SQLException {
-		return (String)getObject(selectStmt, ReturnType.STRING);	
+	@Override
+    public String getString(String selectStmt) throws SQLException {
+		return (String)getObject(selectStmt, ReturnType.STRING);
 	}
 
-	public Long getLong(String selectStmt) throws SQLException {
+	@Override
+    public Long getLong(String selectStmt) throws SQLException {
 		return (Long)getObject(selectStmt, ReturnType.LONG);
 	}
-	
-	public Double getDouble(String selectStmt) throws SQLException {
+
+	@Override
+    public Double getDouble(String selectStmt) throws SQLException {
 		return (Double)getObject(selectStmt, ReturnType.DOUBLE);
 	}
 
-	public BigDecimal getBigDecimal(String selectStmt) throws SQLException {
+	@Override
+    public BigDecimal getBigDecimal(String selectStmt) throws SQLException {
 		return (BigDecimal)getObject(selectStmt, ReturnType.BIGDECIMAL);
 	}
-	
-	public java.sql.Timestamp getTimestamp(String selectStmt) throws SQLException {
+
+	@Override
+    public java.sql.Timestamp getTimestamp(String selectStmt) throws SQLException {
 		return (java.sql.Timestamp)getObject(selectStmt, ReturnType.SQLTIMESTAMP);
 	}
 
-	public byte[] getRaw(String selectStmt) throws SQLException {
+	@Override
+    public byte[] getRaw(String selectStmt) throws SQLException {
 		return (byte[])getObject(selectStmt, ReturnType.BYTEARRAY);
 	}
 	//
@@ -637,27 +721,33 @@ public class SQLUtil implements SQLUtilInterface {
 
 	// <T> get<T>VarArgs(selectStmt, bindVars...)
 	//
-	public String getStringVarArgs(String selectStmt, Object...bindVariables) throws SQLException {
+	@Override
+    public String getStringVarArgs(String selectStmt, Object...bindVariables) throws SQLException {
 		return (String)getObject(selectStmt, bindVariables);
 	}
 
-	public Long getLongVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
+	@Override
+    public Long getLongVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
 		return ConversionHelper.toLong(getObject(selectStmt, bindVariables));
 	}
-	
-	public BigDecimal getBigDecimalVarArgs(String selectStmt, Object...bindVariables) throws SQLException {
+
+	@Override
+    public BigDecimal getBigDecimalVarArgs(String selectStmt, Object...bindVariables) throws SQLException {
 		return ConversionHelper.toBigDecimal(getObject(selectStmt, bindVariables));
 	}
 
-	public Double getDoubleVarArgs(String selectStmt, Object...bindVariables) throws SQLException {
+	@Override
+    public Double getDoubleVarArgs(String selectStmt, Object...bindVariables) throws SQLException {
 		return (Double)getObject(selectStmt, bindVariables);
 	}
-	
-	public Timestamp getTimestampVarArgs(String selectStmt, Object...bindVariables) throws SQLException {
+
+	@Override
+    public Timestamp getTimestampVarArgs(String selectStmt, Object...bindVariables) throws SQLException {
 		return (Timestamp)getObject(selectStmt, bindVariables);
 	}
-	
-	public byte[] getRawVarArgs(String selectStmt, Object...bindVariables) throws SQLException {
+
+	@Override
+    public byte[] getRawVarArgs(String selectStmt, Object...bindVariables) throws SQLException {
 		return (byte[])getObject(selectStmt, bindVariables);
 	}
 	//
@@ -670,23 +760,28 @@ public class SQLUtil implements SQLUtilInterface {
 		return (String)getObject(selectStmt, bindVariables);
 	}
 
-	public Long getLong(String selectStmt, Object[] bindVariables) throws SQLException {
+	@Override
+    public Long getLong(String selectStmt, Object[] bindVariables) throws SQLException {
 		return ConversionHelper.toLong(getObject(selectStmt, bindVariables));
 	}
-	
-	public Timestamp getTimestamp(String selectStmt, Object[] bindVariables) throws SQLException {
+
+	@Override
+    public Timestamp getTimestamp(String selectStmt, Object[] bindVariables) throws SQLException {
 		return (Timestamp)getObject(selectStmt, bindVariables);
 	}
-	
-	public BigDecimal getBigDecimal(String selectStmt, Object[] bindVariables) throws SQLException {
+
+	@Override
+    public BigDecimal getBigDecimal(String selectStmt, Object[] bindVariables) throws SQLException {
 		return ConversionHelper.toBigDecimal(getObject(selectStmt, bindVariables));
 	}
-	
-	public Double getDouble(String selectStmt, Object[] bindVariables) throws SQLException {
+
+	@Override
+    public Double getDouble(String selectStmt, Object[] bindVariables) throws SQLException {
 		return (Double)getObject(selectStmt, bindVariables);
 	}
-	
-	public byte[] getRaw(String selectStmt, Object[] bindVariables) throws SQLException {
+
+	@Override
+    public byte[] getRaw(String selectStmt, Object[] bindVariables) throws SQLException {
 		return (byte[])getObject(selectStmt, bindVariables);
 	}
 
@@ -703,26 +798,31 @@ public class SQLUtil implements SQLUtilInterface {
 		return (String)getObject(selectStmt, bindVariables, bindTypes);
 	}
 
-	public Long getLong(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
+	@Override
+    public Long getLong(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
 		return ConversionHelper.toLong(getObject(selectStmt, bindVariables, bindTypes));
 	}
 
-	public Timestamp getTimestamp(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
+	@Override
+    public Timestamp getTimestamp(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
 		return (Timestamp)getObject(selectStmt, bindVariables, bindTypes);
 	}
 
-	public Double getDouble(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
+	@Override
+    public Double getDouble(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
 		return (Double)getObject(selectStmt, bindVariables, bindTypes);
 	}
 
-	public BigDecimal getBigDecimal(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
+	@Override
+    public BigDecimal getBigDecimal(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
 		return ConversionHelper.toBigDecimal(getObject(selectStmt, bindVariables, bindTypes));
 	}
 
-	public byte[] getRaw(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
+	@Override
+    public byte[] getRaw(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
 		return (byte[])getObject(selectStmt, bindVariables, bindTypes);
 	}
-	
+
 	private Object getObject(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
 		setExpectations(1,1);
 		Row[] r = getRows(selectStmt, bindVariables, bindTypes);
@@ -732,65 +832,75 @@ public class SQLUtil implements SQLUtilInterface {
 
 	// List<<T>> get<T>s(selectStmt)
 	//
-	public String[] getStrings(String selectStmt) throws SQLException {
+	@Override
+    public String[] getStrings(String selectStmt) throws SQLException {
 		setExpectations(null,1);
 		Row[] in = getRows(selectStmt);
 		return ConversionHelper.toStrings(in);
 	}
 
-	public Long[] getLongs(String selectStmt) throws SQLException {
+	@Override
+    public Long[] getLongs(String selectStmt) throws SQLException {
 		setExpectations(null,1);
 		Row[] in = getRows(selectStmt);
 		return ConversionHelper.toLongs(in);
 	}
 
-	public Double[] getDoubles(String selectStmt) throws SQLException {
+	@Override
+    public Double[] getDoubles(String selectStmt) throws SQLException {
 		setExpectations(null,1);
 		Row[] in = getRows(selectStmt);
 		return ConversionHelper.toDoubles(in);
 	}
 
-	public BigDecimal[] getBigDecimals(String selectStmt) throws SQLException {
+	@Override
+    public BigDecimal[] getBigDecimals(String selectStmt) throws SQLException {
 		setExpectations(null,1);
 		Row[] in = getRows(selectStmt);
 		return ConversionHelper.toBigDecimals(in);
 	}
 
-	public java.sql.Timestamp[] getTimestamps(String selectStmt) throws SQLException {
+	@Override
+    public java.sql.Timestamp[] getTimestamps(String selectStmt) throws SQLException {
 		setExpectations(null,1);
 		Row[] in = getRows(selectStmt);
 		return ConversionHelper.toTimestamps(in);
 	}
 
-	public byte[][] getRaws(String selectStmt) throws SQLException {
+	@Override
+    public byte[][] getRaws(String selectStmt) throws SQLException {
 		setExpectations(null,1);
 		Row[] in = getRows(selectStmt);
 		return ConversionHelper.toRaws(in);
 	}
 	//
 	// List<<T>> get<T>s(selectStmt)
-	
+
 	// List<<T>> get<T>VarArgs(selectStmt, bindVars...)
 	//
-	public String[] getStringsVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
+	@Override
+    public String[] getStringsVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
 		setExpectations(null,1);
 		Row[] in = getRowsVarArgs(selectStmt, bindVariables);
 		return ConversionHelper.toStrings(in);
 	}
 
-	public Long[] getLongsVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
+	@Override
+    public Long[] getLongsVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
 		setExpectations(null,1);
 		Row[] in = getRowsVarArgs(selectStmt, bindVariables);
 		return ConversionHelper.toLongs(in);
 	}
 
-	public Double[] getDoublesVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
+	@Override
+    public Double[] getDoublesVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
 		setExpectations(null,1);
 		Row[] in = getRowsVarArgs(selectStmt, bindVariables);
 		return ConversionHelper.toDoubles(in);
 	}
 
-	public BigDecimal[] getBigDecimalsVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
+	@Override
+    public BigDecimal[] getBigDecimalsVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
 		setExpectations(null,1);
 		Row[] in = getRowsVarArgs(selectStmt, bindVariables);
 		return ConversionHelper.toBigDecimals(in);
@@ -882,7 +992,7 @@ public class SQLUtil implements SQLUtilInterface {
 		Row[] in = getRows(selectStmt, bindVariables, null);
 		return ConversionHelper.toDoubles(in);
 	}
-	
+
 	@Override
 	public BigDecimal[] getBigDecimals(String selectStmt, Object[] bindVariables) throws SQLException {
 		setExpectations(null,1);
@@ -904,7 +1014,7 @@ public class SQLUtil implements SQLUtilInterface {
 		return ConversionHelper.toRaws(in);
 	}
 
-	
+
 	// INTERNAL HELPER
 	//
 	private static String getString(ResultSet rs, int pos) throws SQLException {
@@ -974,11 +1084,11 @@ public class SQLUtil implements SQLUtilInterface {
 	private static byte[] getByteArray(ResultSet rs, int i) throws SQLException {
 		return rs.getBytes(i);
 	}
-	
+
 	private static void printError(PrintStream out, SQLException sqle, String stmt, Object[] bindVariables, int[] bindTypes) {
 		out.println(sqle.getMessage());
 		out.println("sql="+stmt);
-		if (bindVariables==null) 
+		if (bindVariables==null)
 			out.println("bindVariables=NULL");
 		else {
 			StringBuffer sb = new StringBuffer("bindVariables, len=");
@@ -989,7 +1099,7 @@ public class SQLUtil implements SQLUtilInterface {
 			out.println(sb.toString());
 		}
 		// todo: print constant names instead of values
-		if (bindTypes==null) 
+		if (bindTypes==null)
 			out.println("bindTypes=NULL");
 		else {
 			StringBuffer sb = new StringBuffer("bindTypes, len=");
@@ -999,7 +1109,7 @@ public class SQLUtil implements SQLUtilInterface {
 			sb.append('[').append(bindTypes.length-1).append("]=").append(bindTypes[bindTypes.length-1]);
 			out.println(sb.toString());
 		}
-	}	
+	}
 }
 
 
@@ -1062,7 +1172,7 @@ public String toString() {
 		sb.append("; bindVars={");
 		boolean first = true;
 		for (Object o:bindVariables) {
-			if (first) 
+			if (first)
 				first=false;
 			else
 				sb.append(';');
@@ -1098,4 +1208,3 @@ public Object[] getBindVariables() {
 }
 }
 */
-
