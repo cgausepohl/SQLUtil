@@ -42,7 +42,7 @@ public final class SQLUtil implements SQLUtilInterface {
 	private int[] batchResultTypes;
 
 	// caches. if hashtable==null, cache is turned off. maxvalues<=0 results in unlimited cache.
-	private LRUCache lruStatementCache = new LRUCache();
+	private LRUCache lruStatementCache = null;
 
 
 	@Override
@@ -50,11 +50,15 @@ public final class SQLUtil implements SQLUtilInterface {
 	    return audit;
 	}
 
-	private enum DBProducts {POSTGRESQL, MYSQL, ORACLE, GENERIC};
-	private DBProducts dbProduct = DBProducts.GENERIC;
+	private DBProduct dbProduct = DBProduct.GENERIC;
 
 	public SQLUtil(Connection con) throws SQLException {
 		setConnection(con);
+	}
+
+	@Override
+	public DBProduct getDBProduct() {
+	    return dbProduct;
 	}
 
     @Override
@@ -143,6 +147,7 @@ public final class SQLUtil implements SQLUtilInterface {
 		batchResultTypes = new int[batchColCount];
 		for (int i=1,n=0; i<=batchColCount; i++, n++) {
 			batchResultTypes[n] = lastMetaData.getColumnType(i);
+			//System.out.println(n+":"+lastMetaData.getColumnClassName(i)+" "+lastMetaData.getColumnTypeName(i));
 			// a little hack. SQL.INTEGER are mapped to java long. Java long must be mapped to SQL.BIGINT
 			if (batchResultTypes[n] == Types.INTEGER)
 				batchResultTypes[n] = Types.BIGINT;
@@ -215,10 +220,17 @@ public final class SQLUtil implements SQLUtilInterface {
 		this.con = con;
 		if (con==null) return;
 		String prodName = con.getMetaData().getDatabaseProductName();
+		// TODO MAP ORACLE
 		if ("PostgreSQL".equals(prodName))
-			dbProduct = DBProducts.POSTGRESQL;
-		else
-			dbProduct = DBProducts.GENERIC;
+			dbProduct = DBProduct.POSTGRESQL;
+		else if ("Microsoft SQL Server".equals(prodName))
+            dbProduct = DBProduct.MSSQLSERVER;
+		else if ("Oracle".equals(prodName))
+            dbProduct = DBProduct.ORACLE;
+		else {
+		    info("unmapped dbProduct="+prodName);
+			dbProduct = DBProduct.GENERIC;
+		}
 	}
 
 	public Calendar getCalendar() {
@@ -325,6 +337,12 @@ public final class SQLUtil implements SQLUtilInterface {
 		}
 	}
 
+	@Override
+    public void executeDDLSilent(String ddlStmt) {
+	    try {
+	        executeDDL(ddlStmt);
+	    } catch (SQLException ignore) {}
+	}
 
 	@Override
 	public void closeSilent(ResultSet rs) {
@@ -533,19 +551,24 @@ public final class SQLUtil implements SQLUtilInterface {
 			case Types.SMALLINT:
 				v = getInteger(rs, i);
 				break;
-			case Types.INTEGER:
+            case Types.INTEGER:
+            case Types.BIGINT:
+                // FIXME: ? does bigint always match to getLong?
 				v = getLong(rs, i);
 				break;
 			case Types.NUMERIC:
 			case Types.DECIMAL:
 				v = getBigDecimal(rs, i);
 				break;
+            case Types.DATE:
+                v = getDate(rs, i);
+                break;
 			case Types.REAL:
 				v = getFloat(rs, i);
 				break;
-			case Types.DATE:
-				v = getDate(rs, i);
-				break;
+			case Types.DOUBLE:
+			    v = getDouble(rs, i);
+			    break;
 			case Types.TIMESTAMP:
 				v = getTimestamp(rs, i);
 				break;
@@ -564,7 +587,8 @@ public final class SQLUtil implements SQLUtilInterface {
 			default:
 				// all special or dependent values....
 				boolean err=false;
-				if (dbProduct==DBProducts.POSTGRESQL) {
+				if (getDBProduct()==DBProduct.POSTGRESQL) {
+				    // numbers are hardcoded, so no postgres driver is referenced.
 					switch (resultTypes[n]) {
 					case 8: //float8
 						v = getDouble(rs,i);
@@ -578,11 +602,33 @@ public final class SQLUtil implements SQLUtilInterface {
 					default:
 						err=true;
 					}
+				} else if (getDBProduct()==DBProduct.MSSQLSERVER) {
+				    switch (resultTypes[n]) {
+				    case -155: // DATETIMEOFFSET
+				        v = getTimestamp(rs, i);
+				        break;
+                    default:
+                        err=true;
+				    }
+				} else if (getDBProduct()==DBProduct.ORACLE) {
+                    switch (resultTypes[n]) {
+                    case 101: // DOUBLE?
+                        v = getDouble(rs, i);
+                        break;
+                    case -101:  // Timestamp with Time Zone
+                        v = getTimestamp(rs, i);
+                        break;
+                    case 2005: // clob
+                        v = getString(rs, i);
+                        break;
+                    default:
+                        err=true;
+                    }
 				} else {
 					err=true;
 				}
 				if (err) {
-					throw new UnsupportedOperationException("Not matched, column #"+i+" in sql <<"+selectStmt+
+					throw new UnsupportedOperationException("Cannot convert db-value to Java, column #"+i+" in sql <<"+selectStmt+
 							">>, value of resultTypes["+n+"]="+resultTypes[n]);
 				}
 			}
@@ -615,6 +661,7 @@ public final class SQLUtil implements SQLUtilInterface {
 			int[] resultTypes = new int[colCount];
 			for (int i=1,n=0; i<=colCount; i++, n++) {
 				resultTypes[n] = rs.getMetaData().getColumnType(i);
+				//System.out.println(n+":"+resultTypes[n]+":"+lastMetaData.getColumnClassName(i)+" "+lastMetaData.getColumnTypeName(i));
 				if (columnMap!=null)
 					columnMap.put(rs.getMetaData().getColumnLabel(i), n);
 			}

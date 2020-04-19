@@ -97,6 +97,14 @@ public final class BindHelper {
 		return ps;
 	}
 
+	public static PreparedStatement bindBlob(PreparedStatement ps, int pos, java.sql.Blob val) throws SQLException {
+	    if (val != null)
+	        ps.setBlob(pos, val);
+	    else
+	        ps.setNull(pos, Types.BLOB);
+	    return ps;
+	}
+
 	public static PreparedStatement bindSQLTimestamp(PreparedStatement ps, int pos, java.sql.Timestamp val, Calendar calendar)
 			throws SQLException {
 		if (val != null) {
@@ -221,7 +229,8 @@ public final class BindHelper {
 			switch (sqltype) {
 			case Types.CHAR:
 			case Types.VARCHAR:
-			case Types.LONGNVARCHAR:
+            case Types.LONGVARCHAR:
+            case Types.LONGNVARCHAR:
 			case Types.NVARCHAR:
 			case Types.NCHAR:
 				bindString(ps, pos, (String) val);
@@ -274,6 +283,9 @@ public final class BindHelper {
 				else
 					bindSQLTimestamp(ps, pos, new java.sql.Timestamp(((java.util.Date)val).getTime()), calendar);
 				break;
+			case Types.BLOB:
+			    bindBlob(ps, pos, (java.sql.Blob) val);
+			    break;
 			default:
 				throw new IllegalArgumentException(
 						"unmatched value bindTypes[" + n + "], value=" + bindTypes[n]);

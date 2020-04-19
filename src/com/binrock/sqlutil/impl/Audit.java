@@ -14,6 +14,7 @@ import com.binrock.sqlutil.AuditInterface;
 import com.binrock.sqlutil.AuditRecord;
 import com.binrock.sqlutil.SQLUtilFactory;
 import com.binrock.sqlutil.SQLUtilInterface;
+import com.binrock.sqlutil.SQLUtilInterface.DBProduct;
 
 public class Audit implements AuditInterface {
 
@@ -91,6 +92,10 @@ public class Audit implements AuditInterface {
         SQLUtilInterface sql = null;
         try {
             sql = SQLUtilFactory.createSQLUtil(conJdbc, conUser, conPassword);
+            if (sql.getDBProduct()!=DBProduct.POSTGRESQL) {
+                System.out.println("only postgres supported as audit target. current dbproduct="+sql.getDBProduct());
+                return;
+            }
             sql.getAudit().enable(false);
             sql.getConnection().setAutoCommit(false);
 

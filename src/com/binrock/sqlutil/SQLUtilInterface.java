@@ -36,6 +36,8 @@ import java.util.List;
 
 public interface SQLUtilInterface {
 
+    public enum DBProduct {POSTGRESQL, MYSQL, ORACLE, MSSQLSERVER, GENERIC};
+
 	// Connection Management
 	//
 	// must be called before your program ends, or no further SQLs will be executed
@@ -61,6 +63,7 @@ public interface SQLUtilInterface {
 	public int getFetchSize();
     public void enablePreparedStatementCache(boolean enable) throws SQLException;
     public void setPreparedStatementCacheSize(int cacheSize) throws SQLException;
+    public DBProduct getDBProduct();
 
 	// log management. Use null to suppress output.
     public void setStdout(PrintStream stdout);
@@ -68,8 +71,10 @@ public interface SQLUtilInterface {
 
     // exec Data Manipulation Language (DML) / Data Definition Language (DDL) directly
 	//
-	// execute ddl (things like "create table(id numeric)" etc.)
-	public void executeDDL(String ddlStmt) throws SQLException;
+    // execute ddl (things like "create table(id numeric)" etc.)
+    public void executeDDL(String ddlStmt) throws SQLException;
+    // like executeDDL, but no exception will be thrown.
+    public void executeDDLSilent(String ddlStmt);
 	// execute dml (update, insert, delete, merge)
 	public Integer executeDML(String dmlStmt) throws SQLException;
 	// exec once, ? will be replaced with varargs

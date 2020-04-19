@@ -11,10 +11,8 @@ public final class ConversionHelper {
 
 	public static Integer toInteger(Object o) {
 		try {
-			Long l = toLong(o);
-			if (l == null)
-				return null;
-			return l.intValue();
+            if (o == null) return null;
+			return toLong(o).intValue();
 		} catch (IllegalArgumentException iae) {
 			throw new IllegalArgumentException("cannot convert class " + o.getClass().getName() + " to Integer");
 		}
@@ -150,8 +148,8 @@ public final class ConversionHelper {
 			ts = null;
 		else if (o instanceof java.sql.Timestamp)
 			ts = (java.sql.Timestamp) o;
-		else if (o instanceof java.sql.Date)
-			ts = new Timestamp(((java.sql.Date) o).getTime());
+        else if (o instanceof java.util.Date) // handles also hava.sql.Date
+            ts = new Timestamp(((java.util.Date) o).getTime());
 		else
 			throw new IllegalArgumentException(
 					"cannot convert class " + o.getClass().getName() + " to java.sql.Timestamp");

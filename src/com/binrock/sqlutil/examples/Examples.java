@@ -136,8 +136,7 @@ public class Examples {
         log("updating...");
         int[] affectedRows = sql.executeDMLBatch("update SQLUTIL_EXAMPLE set d=?,d_str=? where id=?", batchValues, bindTypes);
         int updCnt=0;
-        for (int i: affectedRows)
-            updCnt+=i;
+        for (int i: affectedRows) updCnt+=i;
         log("updated rows "+updCnt);
     }
 
