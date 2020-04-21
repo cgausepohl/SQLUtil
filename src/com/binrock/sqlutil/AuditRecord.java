@@ -33,8 +33,9 @@ public class AuditRecord {
     }
 
     public Float getDurationMs() {
-        if (error!=null) return null;
-        Float f = (t1ns-t0ns)/(float)1000000;
+        if (error != null)
+            return null;
+        Float f = (t1ns - t0ns) / (float) 1000000;
         return f;
     }
 
@@ -43,13 +44,15 @@ public class AuditRecord {
     }
 
     public String getBindValues() {
-        if (bindValues==null) return null;
+        if (bindValues == null)
+            return null;
         StringBuffer sb = new StringBuffer();
         boolean first = true;
-        for (Object o: bindValues) {
-            if (!first) sb.append(',');
-            first=false;
-            if (o==null)
+        for (Object o : bindValues) {
+            if (!first)
+                sb.append(',');
+            first = false;
+            if (o == null)
                 sb.append("null");
             else
                 sb.append(o.getClass().getName()).append('[').append(o.toString()).append(']');

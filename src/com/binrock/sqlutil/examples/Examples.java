@@ -14,19 +14,20 @@ import com.binrock.sqlutil.SQLUtilInterface;
 
 public class Examples {
 
-    static long logPrevLog=0;
+    static long logPrevLog = 0;
     static DateFormat logDF = DateFormat.getDateTimeInstance();
 
     static void log(String s) {
         long now = System.currentTimeMillis();
-        long msToPrevLog = logPrevLog==0?-1:now-logPrevLog;
+        long msToPrevLog = logPrevLog == 0 ? -1 : now - logPrevLog;
         logPrevLog = now;
-        System.out.printf("["+logDF.format(new Date(now))+"][%1$4sms] "+s+"\n", msToPrevLog);
+        System.out.printf("[" + logDF.format(new Date(now)) + "][%1$4sms] " + s + "\n",
+                msToPrevLog);
     }
 
     static void getStringExample(SQLUtilInterface sql) throws SQLException {
         String s = sql.getString("select 'Hello'");
-        log("getString:"+ s);
+        log("getString:" + s);
     }
 
     static void createTableExample(SQLUtilInterface sql) throws SQLException {
@@ -38,15 +39,17 @@ public class Examples {
         // as a string, no prepared statements, sql-injections possible
         Long id = 1L;
         String d = "2020-12-31";
-        sql.executeDML("insert into SQLUTIL_EXAMPLE (id,d) values ("+id+",to_date('"+d+"','YYYY-MM-DD'))");
+        sql.executeDML("insert into SQLUTIL_EXAMPLE (id,d) values (" + id + ",to_date('" + d
+                + "','YYYY-MM-DD'))");
         // all bind variables are !=null, with varargs
-        sql.executeDMLVarArgs("insert into SQLUTIL_EXAMPLE (id,d) values (?,?)", new Long(2), new java.util.Date());
+        sql.executeDMLVarArgs("insert into SQLUTIL_EXAMPLE (id,d) values (?,?)", new Long(2),
+                new java.util.Date());
         // all bind variables are !=null, with array
-        Object[] values = {new Long(3), new java.util.Date()};
+        Object[] values = { new Long(3), new java.util.Date() };
         sql.executeDML("insert into SQLUTIL_EXAMPLE (id,d) values (?,?)", values);
         // nullable values needs type-mapping
-        int[] sqltypes = {Types.BIGINT, Types.DATE};
-        Object[] valuesWithNull = {new Long(4), null};
+        int[] sqltypes = { Types.BIGINT, Types.DATE };
+        Object[] valuesWithNull = { new Long(4), null };
         sql.executeDML("insert into SQLUTIL_EXAMPLE (id,d) values (?,?)", valuesWithNull, sqltypes);
     }
 
@@ -56,11 +59,11 @@ public class Examples {
 
     static void selectExample(SQLUtilInterface sql) throws SQLException {
         Row[] rows = sql.getRows("select id,d,d_str from SQLUTIL_EXAMPLE order by id");
-        for (Row row: rows) {
+        for (Row row : rows) {
             Long id = row.getLong(0);
             Timestamp d = row.getTimestamp(1);
             String dStr = row.getString(2);
-            log("[id="+id+"; d="+d+"; d_str="+dStr+"]");
+            log("[id=" + id + "; d=" + d + "; d_str=" + dStr + "]");
         }
     }
 
@@ -68,7 +71,7 @@ public class Examples {
         String sqlStmt = "vacuum full analyze SQLUTIL_EXAMPLE(id,d,d_str)";
         sql.executeDDL(sqlStmt);
         log(sqlStmt);
-        log("  "+sql.getAudit().getAuditRecords().get(sqlStmt).get(0).toString());
+        log("  " + sql.getAudit().getAuditRecords().get(sqlStmt).get(0).toString());
     }
 
     static void chunkExample(SQLUtilInterface sql) throws SQLException {
@@ -77,17 +80,17 @@ public class Examples {
          */
         // generate data
         log("create 131072 rows");
-        for (int i=0; i<15; i++)
+        for (int i = 0; i < 15; i++)
             sql.executeDML("insert into SQLUTIL_EXAMPLE select * from SQLUTIL_EXAMPLE");
         log("created");
 
         // read data as chunks
         // each chunk has a maxSize of 50000 rows, that limits the max memory usage
         sql.getChunksPrepare("select id,d,d_str from SQLUTIL_EXAMPLE", 50000);
-        int chunkNum=0;
+        int chunkNum = 0;
         Row[] rows = null;
-        while ((rows=sql.getChunksGetNextRows()) !=null) {
-            log("done chunk #"+chunkNum+", size="+rows.length);
+        while ((rows = sql.getChunksGetNextRows()) != null) {
+            log("done chunk #" + chunkNum + ", size=" + rows.length);
             chunkNum++;
         }
         sql.getChunksClose();
@@ -99,19 +102,20 @@ public class Examples {
         log("generate 100000 new rows inmemory");
         List<Object[]> batchValues = new ArrayList<>();
         DateFormat df = DateFormat.getInstance();
-        for (int i=0; i<100000; i++) {
+        for (int i = 0; i < 100000; i++) {
             Object[] row = new Object[3];
             row[0] = new Long(i);
             Date d = new Date(System.currentTimeMillis());
             row[1] = d;
             // sometimes null
-            if (i%4!=0)
+            if (i % 4 != 0)
                 row[2] = df.format(d) + " - " + row[0];
             batchValues.add(row);
         }
-        int[] bindTypes = {Types.BIGINT, Types.DATE, Types.VARCHAR};
+        int[] bindTypes = { Types.BIGINT, Types.DATE, Types.VARCHAR };
         log("inserting...");
-        sql.executeDMLBatch("insert into SQLUTIL_EXAMPLE(id,d,d_str) values (?,?,?)", batchValues, bindTypes);
+        sql.executeDMLBatch("insert into SQLUTIL_EXAMPLE(id,d,d_str) values (?,?,?)", batchValues,
+                bindTypes);
         log("inserted");
     }
 
@@ -120,32 +124,33 @@ public class Examples {
         log("generate 100000 changes in memory");
         List<Object[]> batchValues = new ArrayList<>();
         DateFormat df = DateFormat.getInstance();
-        for (int i=0; i<100000; i++) {
+        for (int i = 0; i < 100000; i++) {
             Object[] row = new Object[3];
             Date d = new Date(System.currentTimeMillis());
             row[0] = d;
             // sometimes null
-            if (i%3!=0)
+            if (i % 3 != 0)
                 row[1] = df.format(d) + " - " + row[0];
             row[2] = new Long(i);
             batchValues.add(row);
         }
-        int[] bindTypes = {Types.DATE, Types.VARCHAR, Types.BIGINT};
+        int[] bindTypes = { Types.DATE, Types.VARCHAR, Types.BIGINT };
         log("creating index on column id...");
         sql.executeDDL("create index IDX_SQLUTIL_EXAMPLE on SQLUTIL_EXAMPLE(id)");
         log("updating...");
-        int[] affectedRows = sql.executeDMLBatch("update SQLUTIL_EXAMPLE set d=?,d_str=? where id=?", batchValues, bindTypes);
-        int updCnt=0;
-        for (int i: affectedRows) updCnt+=i;
-        log("updated rows "+updCnt);
+        int[] affectedRows = sql.executeDMLBatch(
+                "update SQLUTIL_EXAMPLE set d=?,d_str=? where id=?", batchValues, bindTypes);
+        int updCnt = 0;
+        for (int i : affectedRows)
+            updCnt += i;
+        log("updated rows " + updCnt);
     }
-
-
 
     public static void main(String[] args) throws SQLException {
         SQLUtilInterface sql = null;
         try {
-            sql = SQLUtilFactory.createSQLUtil("jdbc:postgresql://localhost/sqlutil", "sqlutil", "sqlutil");
+            sql = SQLUtilFactory.createSQLUtil("jdbc:postgresql://localhost/sqlutil", "sqlutil",
+                    "sqlutil");
             /* // if you already have a connection or need a special initialization:
              * Connection con = DriverManager.getConnection("jdbc:postgresql://localhost/sqlutil", "sqlutil", "sqlutil");
              * sql = SQLUtilFactory.createSQLUtil(con);
@@ -160,11 +165,11 @@ public class Examples {
             batchedInsertExample(sql);
             batchedUpdateExample(sql);
 
-            sql.getAudit().printSummary(System.out, 0,  null);
+            sql.getAudit().printSummary(System.out, 0, null);
 
             System.out.println("done");
         } finally {
-            if (sql!=null)
+            if (sql != null)
                 sql.closeConnection();
         }
     }

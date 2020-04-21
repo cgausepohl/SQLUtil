@@ -18,7 +18,8 @@ public final class LRUCache {
     private Hashtable<String, PreparedStatement> stmts = new Hashtable<>();
     private int maxSize = 0;
 
-    public LRUCache() {}
+    public LRUCache() {
+    }
 
     public LRUCache(int maxSize) {
         this.maxSize = maxSize;
@@ -42,36 +43,36 @@ public final class LRUCache {
 
     private void removeDeadStatements() throws SQLException {
         List<String> del = new ArrayList<>();
-        for (String sql: lruSQL) {
+        for (String sql : lruSQL) {
             PreparedStatement ps = stmts.get(sql);
-            if (ps==null)
+            if (ps == null)
                 del.add(sql);
-            else
-                if (ps.isClosed())
-                    del.add(sql);
+            else if (ps.isClosed())
+                del.add(sql);
         }
-        for (String sql: del)
+        for (String sql : del)
             remove(sql);
     }
 
     public void add(String sql, PreparedStatement s) throws SQLException {
         removeDeadStatements();
-        if (maxSize>0)
-            while (size()>=maxSize)
+        if (maxSize > 0)
+            while (size() >= maxSize)
                 removeLast();
         lruSQL.addFirst(sql);
         stmts.put(sql, s);
     }
 
     public boolean removeLast() throws SQLException {
-        if (lruSQL.size()==0) return false;
+        if (lruSQL.size() == 0)
+            return false;
         String last = lruSQL.getLast();
         return remove(last);
     }
 
     public boolean remove(String sql) throws SQLException {
         PreparedStatement stmt = stmts.get(sql);
-        if (stmt!=null) {
+        if (stmt != null) {
             if (!stmt.isClosed())
                 stmt.close();
             stmts.remove(sql);
@@ -81,15 +82,15 @@ public final class LRUCache {
 
     public void resize(int newMaxSize) throws SQLException {
         this.maxSize = newMaxSize;
-        while (size()>maxSize)
+        while (size() > maxSize)
             removeLast();
     }
 
     public void clear() throws SQLException {
-        while (lruSQL.size()>0)
+        while (lruSQL.size() > 0)
             removeLast();
-        assert(lruSQL.size()==0);
-        assert(stmts.size()==0);
+        assert (lruSQL.size() == 0);
+        assert (stmts.size() == 0);
     }
 
 }
