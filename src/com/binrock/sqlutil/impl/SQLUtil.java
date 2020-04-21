@@ -225,8 +225,10 @@ public final class SQLUtil implements SQLUtilInterface {
 			dbProduct = DBProduct.POSTGRESQL;
 		else if ("Microsoft SQL Server".equals(prodName))
             dbProduct = DBProduct.MSSQLSERVER;
-		else if ("Oracle".equals(prodName))
+        else if ("Oracle".equals(prodName))
             dbProduct = DBProduct.ORACLE;
+        else if ("MySQL".equals(prodName))
+            dbProduct = DBProduct.MYSQL;
 		else {
 		    info("unmapped dbProduct="+prodName);
 			dbProduct = DBProduct.GENERIC;
@@ -697,7 +699,7 @@ public final class SQLUtil implements SQLUtilInterface {
 
 	//
 	// getRows
-	private enum ReturnType {STRING, DOUBLE, LONG, BIGDECIMAL, SQLDATE, SQLTIMESTAMP, BYTEARRAY};
+	private enum ReturnType {STRING, DOUBLE, LONG, BIGDECIMAL, SQLDATE, SQLTIMESTAMP, BYTEARRAY}
 	private Object getObject(String selectStmt, ReturnType rt) throws SQLException {
         getAudit().startNewAuditRecord(selectStmt);
 		PreparedStatement ps = null;

@@ -28,9 +28,11 @@ public class Test {
 	// expecting a postgres-db with user sqlutil and password SQLutil$1
 	// tables and data will be set up during this test
 	public static void main(String[] args) throws SQLException, InterruptedException {
-        new Test().testAll("jdbc:postgresql://localhost/sqlutil", "sqlutil", "sqlutil");
-        new Test().testAll("jdbc:sqlserver://192.168.188.79:1433;databaseName=TEST", "sqlutil", "sqlutil");
-        new Test().testAll("jdbc:oracle:thin:@192.168.188.79:1521/xe", "sqlutil", "sqlutil");
+        //new Test().testAll("jdbc:postgresql://localhost/sqlutil", "sqlutil", "sqlutil");
+        //new Test().testAll("jdbc:sqlserver://192.168.188.79:1433;databaseName=TEST", "sqlutil", "sqlutil");
+        //new Test().testAll("jdbc:oracle:thin:@192.168.188.79:1521/xe", "sqlutil", "sqlutil");
+	    // TODO reduce options
+        //new Test().testAll("jdbc:mysql://localhost:3306/sqlutil?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC", "sqlutil", "sqlutil");
 	}
 
 	private void testAll(String jdbc, String user, String password) throws SQLException, InterruptedException {
@@ -47,6 +49,7 @@ public class Test {
             case POSTGRESQL: testDB = new TestPostgreSQL(); break;
             case MSSQLSERVER: testDB = new TestMSSQLServer(); break;
             case ORACLE: testDB = new TestOracle(); break;
+            case MYSQL: testDB = new TestMySQL(); break;
             default: testDB=null;
             }
 
@@ -110,7 +113,7 @@ public class Test {
             //sql.getAudit().printSummary(System.out,  0, null);
         }
 
-        System.out.println("done, exec time(ms)=" + (System.currentTimeMillis() - programStarted));
+        System.out.println(sql.getDBProduct()+" done, exec time(ms)=" + (System.currentTimeMillis() - programStarted));
 	}
 
 	private static void testStream(SQLUtilInterface sql) throws SQLException {
