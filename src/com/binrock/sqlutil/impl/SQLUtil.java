@@ -19,9 +19,6 @@ import java.util.List;
 import com.binrock.sqlutil.AuditInterface;
 import com.binrock.sqlutil.Row;
 import com.binrock.sqlutil.SQLUtilInterface;
-import com.binrock.sqlutil.exception.ReturnedMoreThanOneRowException;
-import com.binrock.sqlutil.exception.ReturnedNoRowException;
-import com.binrock.sqlutil.exception.SingleRowQueryException;
 
 public final class SQLUtil implements SQLUtilInterface {
 
@@ -436,27 +433,22 @@ public final class SQLUtil implements SQLUtilInterface {
         }
     }
 
-    private void expectOneRow(Row[] rows) throws SingleRowQueryException {
-        if (rows == null)
-            throw new IllegalArgumentException("paramater l must have a value");
-        if (rows.length > 1)
-            throw new ReturnedMoreThanOneRowException();
-        if (rows.length == 0)
-            throw new ReturnedNoRowException();
-    }
+    public void expectXRows(Row[] rows, int x) throws SQLException {
+        // if negative, 0..* rows are ok, so everything is ok
+        if (x<0) return;
 
-    public void checkExactNumberRowsExpected(Row[] rows, int expectedRows) throws SQLException {
         boolean ok = true;
         if (rows == null || rows.length == 0)
             if (expectedRows == 0)
                 return;
             else
                 ok = false;
-
-        if (expectedRows == rows.length)
-            return;
-        else
-            ok = false;
+        if (ok) {
+            if (expectedRows == rows.length)
+                return;
+            else
+                ok = false;
+        }
 
         if (!ok)
             throw new SQLException("expected rows: " + expectedRows + ", rows given:"
@@ -561,6 +553,32 @@ public final class SQLUtil implements SQLUtilInterface {
             throws SQLException {
         return getRows(null, selectStmt, bindVariables, bindTypes);
     }
+
+    // getRow
+    //
+    @Override
+    public Row getRowVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
+        return getRow(null, selectStmt, null, null);
+    }
+
+    @Override
+    public Row getRow(String selectStmt) throws SQLException {
+        return getRow(null, selectStmt, null, null);
+    }
+
+    @Override
+    public Row getRow(String selectStmt, Object[] bindVariables) throws SQLException {
+        return getRow(null, selectStmt, null, null);
+    }
+
+    @Override
+    public Row getRow(Hashtable<String, Integer> columnMap, String selectStmt,
+            Object[] bindVariables, int[] bindTypes) throws SQLException {
+        Row[] rows = getRows(columnMap, selectStmt, bindVariables, bindTypes);
+        expectXRows(rows, 1);
+        return rows[0];
+    }
+
 
     private Object[] convertResultRow2ObjectArray(ResultSet rs, int colCount, int rowCount,
             final int[] resultTypes, final String selectStmt) throws SQLException {
@@ -931,7 +949,7 @@ public final class SQLUtil implements SQLUtilInterface {
             throws SQLException {
         setExpectations(1, 1);
         Row[] r = getRows(selectStmt, bindVariables, bindTypes);
-        expectOneRow(r);
+        expectXRows(r, 1);
         return r[0].get(0);
     }
 
@@ -1235,6 +1253,7 @@ public final class SQLUtil implements SQLUtilInterface {
             out.println(sb.toString());
         }
     }
+
 }
 
 /*

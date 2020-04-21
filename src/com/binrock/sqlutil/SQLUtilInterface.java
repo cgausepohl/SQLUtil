@@ -132,6 +132,17 @@ public interface SQLUtilInterface {
     void executeSP(String call, final Object[] bindVariables, final int[] bindTypes)
             throws SQLException;
 
+    // Retrieves one row
+    //
+    Row getRowVarArgs(String selectStmt, Object... bindVariables) throws SQLException;
+
+    Row getRow(String selectStmt) throws SQLException;
+
+    Row getRow(String selectStmt, Object[] bindVariables) throws SQLException;
+
+    Row getRow(Hashtable<String, Integer> columnMap, String selectStmt,
+            final Object[] bindVariables, final int[] bindTypes) throws SQLException;
+
     // Complete ResultSets
     // Returns an array of Row
     //
