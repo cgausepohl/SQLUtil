@@ -436,22 +436,23 @@ public final class SQLUtil implements SQLUtilInterface {
     public void expectXRows(Row[] rows, int x) throws SQLException {
         // if negative, 0..* rows are ok, so everything is ok
         if (x<0) return;
+        if (rows==null && x==0) return;
 
         boolean ok = true;
         if (rows == null || rows.length == 0)
-            if (expectedRows == 0)
+            if (x == 0)
                 return;
             else
                 ok = false;
         if (ok) {
-            if (expectedRows == rows.length)
+            if (x == rows.length)
                 return;
             else
                 ok = false;
         }
 
         if (!ok)
-            throw new SQLException("expected rows: " + expectedRows + ", rows given:"
+            throw new SQLException("expected rows: " + x + ", rows given:"
                     + (rows == null ? 0 : rows.length));
     }
 
@@ -558,7 +559,7 @@ public final class SQLUtil implements SQLUtilInterface {
     //
     @Override
     public Row getRowVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
-        return getRow(null, selectStmt, null, null);
+        return getRow(null, selectStmt, bindVariables, null);
     }
 
     @Override
@@ -568,7 +569,7 @@ public final class SQLUtil implements SQLUtilInterface {
 
     @Override
     public Row getRow(String selectStmt, Object[] bindVariables) throws SQLException {
-        return getRow(null, selectStmt, null, null);
+        return getRow(null, selectStmt, bindVariables, null);
     }
 
     @Override
