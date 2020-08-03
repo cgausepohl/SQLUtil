@@ -29,6 +29,7 @@ public final class SQLUtil implements SQLUtilInterface {
     private int fetchSize = 0;
     private PrintStream stdout = System.out, stderr = System.err;
     private AuditInterface audit = new Audit();
+    private long lastExecMs;
 
     // batch
     private ResultSet batchResultSet;
@@ -44,6 +45,14 @@ public final class SQLUtil implements SQLUtilInterface {
     @Override
     public AuditInterface getAudit() {
         return audit;
+    }
+    
+    public long getLastExecMs() {
+    	return lastExecMs;
+    }
+    
+    private void calculateExecTimeMs(long t0) {
+    	lastExecMs = System.currentTimeMillis()-t0;
     }
 
     private DBProduct dbProduct = DBProduct.GENERIC;
@@ -68,7 +77,7 @@ public final class SQLUtil implements SQLUtilInterface {
     }
 
     private void error(String msg, Throwable t) {
-        log(stderr, msg, null);
+        log(stderr, msg, t);
     }
 
     private void info(String msg) {
@@ -132,12 +141,15 @@ public final class SQLUtil implements SQLUtilInterface {
          * typeMap?
          */
 
-        // prepare, bind and execute
-
-        batchPreparedStatement = getPreparedStatement(selectStmt);
+    	long t0 = System.currentTimeMillis();
+        // prepare, bind and execute, no autocommit and readonly are important to stream sql-data with postgres
+    	getConnection().setAutoCommit(false);	
+    	getConnection().setReadOnly(true);
+    	batchPreparedStatement = getPreparedStatement(selectStmt);
         //FIXME?		batchPreparedStatement = BindHelper.bindVariables(batchPreparedStatement, null, null, getCalendar());
-        batchPreparedStatement.setFetchSize(fetchSize);
-        batchResultSet = batchPreparedStatement.executeQuery();
+    	batchPreparedStatement.setFetchSize(batchSize);	
+        batchPreparedStatement.closeOnCompletion();
+    	batchResultSet = batchPreparedStatement.executeQuery();
         batchResultSet.setFetchSize(fetchSize);
 
         lastMetaData = batchResultSet.getMetaData();
@@ -149,6 +161,9 @@ public final class SQLUtil implements SQLUtilInterface {
             // a little hack. SQL.INTEGER are mapped to java long. Java long must be mapped to SQL.BIGINT
             if (batchResultTypes[n] == Types.INTEGER)
                 batchResultTypes[n] = Types.BIGINT;
+            // JSON hack postgres	
+            if (getDBProduct()==DBProduct.POSTGRESQL && batchResultTypes[n] == 1111) 	
+                batchResultTypes[n] = Types.VARCHAR;
         }
         if (expectedColumns != null && expectedColumns != batchColCount) {
             throw new IllegalStateException("Expected columns: " + expectedColumns
@@ -159,11 +174,13 @@ public final class SQLUtil implements SQLUtilInterface {
         batchRowCount = 0;
         batchResultSetDone = false;
         batchSelectStmt = selectStmt;
+        calculateExecTimeMs(t0);
     }
 
     @Override
     public Row[] getChunksGetNextRows() throws SQLException {
-
+    	
+    	long t0 = System.currentTimeMillis();
         if (batchResultSet == null || batchResultSet.isClosed())
             throw new SQLException(
                     "current iteration not prepared (no call of prepareRowsIterated)");
@@ -196,6 +213,7 @@ public final class SQLUtil implements SQLUtilInterface {
             rows[i] = row;
             i++;
         }
+        calculateExecTimeMs(t0);
         return rows;
     }
 
@@ -329,6 +347,7 @@ public final class SQLUtil implements SQLUtilInterface {
 
     @Override
     public void executeDDL(String ddlStmt) throws SQLException {
+    	long t0 = System.currentTimeMillis();
         getAudit().startNewAuditRecord(ddlStmt);
         PreparedStatement ps = null;
         try {
@@ -341,6 +360,7 @@ public final class SQLUtil implements SQLUtilInterface {
         } finally {
             closeSilent(ps);
             getAudit().endAuditRecord();
+            calculateExecTimeMs(t0);
         }
     }
 
@@ -377,13 +397,14 @@ public final class SQLUtil implements SQLUtilInterface {
     @Override
     public int[] executeDMLBatch(String dmlStmt, List<Object[]> batchValues, int[] bindTypes)
             throws SQLException {
+    	long t0 = System.currentTimeMillis();
         getAudit().startNewAuditRecord(dmlStmt);
         PreparedStatement ps = null;
         int[] affectedRows = null;
         try {
             ps = getPreparedStatement(dmlStmt);
             for (Object[] data : batchValues) {
-                BindHelper.bindVariables(ps, data, bindTypes, getCalendar());
+                BindHelper.bindVariables(ps, data, bindTypes, getCalendar(), getDBProduct());
                 ps.addBatch();
             }
             affectedRows = ps.executeBatch();
@@ -397,22 +418,25 @@ public final class SQLUtil implements SQLUtilInterface {
                 closeSilent(ps);
             if (getAudit().isEnabled()) {
                 int rows = 0;
-                for (int i = 0; i < affectedRows.length; i++)
-                    rows += affectedRows[i];
+                if (affectedRows!=null)
+	                for (int i = 0; i < affectedRows.length; i++)
+	                    rows += affectedRows[i];
                 getAudit().endAuditRecord(rows);
             }
+            calculateExecTimeMs(t0);
         }
     }
 
     @Override
     public int[] executeDMLBatch(String dmlStmt, Row[] rows, int[] bindTypes) throws SQLException {
+    	long t0 = System.currentTimeMillis();
         getAudit().startNewAuditRecord(dmlStmt);
         PreparedStatement ps = null;
         int[] affectedRows = null;
         try {
             ps = getPreparedStatement(dmlStmt);
             for (Row row : rows) {
-                BindHelper.bindVariables(ps, row.getData(), bindTypes, getCalendar());
+                BindHelper.bindVariables(ps, row.getData(), bindTypes, getCalendar(), getDBProduct());
                 ps.addBatch();
             }
             affectedRows = ps.executeBatch();
@@ -430,6 +454,7 @@ public final class SQLUtil implements SQLUtilInterface {
                     r += affectedRows[i];
                 getAudit().endAuditRecord(r);
             }
+            calculateExecTimeMs(t0);
         }
     }
 
@@ -475,11 +500,12 @@ public final class SQLUtil implements SQLUtilInterface {
     @Override
     public void executeSP(String call, Object[] bindVariables, int[] bindTypes)
             throws SQLException {
+    	long t0 = System.currentTimeMillis();
         getAudit().startNewAuditRecord(call, bindVariables);
         CallableStatement cs = null;
         try {
             cs = getConnection().prepareCall(call);
-            BindHelper.bindVariables(cs, bindVariables, bindTypes, getCalendar());
+            BindHelper.bindVariables(cs, bindVariables, bindTypes, getCalendar(), getDBProduct());
             cs.execute();
             cs.close();
         } catch (SQLException sqle) {
@@ -490,6 +516,7 @@ public final class SQLUtil implements SQLUtilInterface {
             closeSilent(cs);
             getAudit().endAuditRecord();
         }
+        calculateExecTimeMs(t0);
     }
 
     // executeDML
@@ -512,12 +539,13 @@ public final class SQLUtil implements SQLUtilInterface {
     @Override
     public Integer executeDML(String dmlStmt, Object[] bindVariables, int[] bindTypes)
             throws SQLException {
+    	long t0 = System.currentTimeMillis();
         getAudit().startNewAuditRecord(dmlStmt, bindVariables);
         PreparedStatement ps = null;
         int rows = -1;
         try {
             ps = getPreparedStatement(dmlStmt);
-            BindHelper.bindVariables(ps, bindVariables, bindTypes, getCalendar());
+            BindHelper.bindVariables(ps, bindVariables, bindTypes, getCalendar(), getDBProduct());
             rows = ps.executeUpdate();
             return rows;
         } catch (SQLException sqle) {
@@ -528,6 +556,7 @@ public final class SQLUtil implements SQLUtilInterface {
             if (lruStatementCache == null)
                 closeSilent(ps);
             getAudit().endAuditRecord(rows);
+            calculateExecTimeMs(t0);
         }
     }
     //
@@ -690,6 +719,7 @@ public final class SQLUtil implements SQLUtilInterface {
     @Override
     public Row[] getRows(Hashtable<String, Integer> columnMap, String selectStmt,
             Object[] bindVariables, int[] bindTypes) throws SQLException {
+    	long t0 = System.currentTimeMillis();
         getAudit().startNewAuditRecord(selectStmt, bindVariables);
         PreparedStatement ps = null;
         ResultSet rs = null;
@@ -698,7 +728,7 @@ public final class SQLUtil implements SQLUtilInterface {
         try {
             // prepare, bind and execute
             ps = getConnection().prepareStatement(selectStmt);
-            BindHelper.bindVariables(ps, bindVariables, bindTypes, getCalendar());
+            BindHelper.bindVariables(ps, bindVariables, bindTypes, getCalendar(), getDBProduct());
             ps.setFetchSize(fetchSize);
             rs = ps.executeQuery();
             lastMetaData = rs.getMetaData();
@@ -742,6 +772,7 @@ public final class SQLUtil implements SQLUtilInterface {
         int i = 0;
         for (Object[] rowData : list)
             rows[i++] = new Row(rowData, columnMap);
+        calculateExecTimeMs(t0);
         return rows;
     }
 
@@ -752,6 +783,7 @@ public final class SQLUtil implements SQLUtilInterface {
     }
 
     private Object getObject(String selectStmt, ReturnType rt) throws SQLException {
+        long t0 = System.currentTimeMillis();
         getAudit().startNewAuditRecord(selectStmt);
         PreparedStatement ps = null;
         ResultSet rs = null;
@@ -765,7 +797,7 @@ public final class SQLUtil implements SQLUtilInterface {
                 v = rs.getString(1);
                 break;
             case LONG:
-                v = new Long(rs.getLong(1));
+                v = Long.valueOf(rs.getLong(1));
                 break;
             case BIGDECIMAL:
                 v = rs.getBigDecimal(1);
@@ -797,6 +829,7 @@ public final class SQLUtil implements SQLUtilInterface {
             if (lruStatementCache == null)
                 closeSilent(ps);
             getAudit().endAuditRecord(1);
+            calculateExecTimeMs(t0);
         }
     }
 
@@ -1256,96 +1289,3 @@ public final class SQLUtil implements SQLUtilInterface {
     }
 
 }
-
-/*
-package com.binrock.sqlutil;
-
-//STATimport java.util.ArrayList;
-//STATimport java.util.Hashtable;
-
-class ExecutionStatistics {
-private Long started, finished;
-private Integer rowsProcessed;
-private Boolean succeeded;
-private String errmsg;
-private Object[] bindVariables;
-ExecutionStatistics(String sql, Hashtable<String, ArrayList<ExecutionStatistics>> allTimings) {
-	ArrayList<ExecutionStatistics> l = allTimings.get(sql);
-	if (l==null) {
-		l = new ArrayList<>();
-		l.add(this);
-		allTimings.put(sql, l);
-	} else {
-		l.add(this);
-	}
-	this.started = System.currentTimeMillis();
-}
-public void setResultOK() {
-	setResultOK(0);
-}
-
-public void setResultOK(Integer rowsProcessed) {
-	finished = System.currentTimeMillis();
-	this.rowsProcessed = rowsProcessed;
-	this.succeeded = true;
-}
-
-public void setResultError(String errmsg) {
-	finished = System.currentTimeMillis();
-	this.rowsProcessed = null;
-	this.succeeded = false;
-	this.errmsg = errmsg;
-}
-public void setBindVariables(Object[] bindVariables) {
-	this.bindVariables = bindVariables;
-}
-public String toString() {
-	StringBuffer sb = new StringBuffer(100);
-	if (succeeded)
-		sb.append("OK:");
-	else
-		sb.append("FAIL:").append(errmsg);
-	sb.append(" ms=").append(finished-started);
-	sb.append("; rows=").append(rowsProcessed);
-	sb.append("; started=").append(started);
-	//sb.append("; finished=").append(finished);
-	if (bindVariables!=null) {
-		sb.append("; bindVars={");
-		boolean first = true;
-		for (Object o:bindVariables) {
-			if (first)
-				first=false;
-			else
-				sb.append(';');
-			sb.append(o!=null?o:"[NULL]");
-		}
-		sb.append('}');
-	}
-	return sb.toString();
-}
-
-public Long getStarted() {
-	return started;
-}
-
-public Long getFinished() {
-	return finished;
-}
-
-public Integer getRowsProcessed() {
-	return rowsProcessed;
-}
-
-public Boolean hasSucceeded() {
-	return succeeded;
-}
-
-public String getErrmsg() {
-	return errmsg;
-}
-
-public Object[] getBindVariables() {
-	return bindVariables;
-}
-}
-*/

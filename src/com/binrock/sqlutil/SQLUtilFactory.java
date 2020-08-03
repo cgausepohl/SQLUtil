@@ -8,23 +8,24 @@ import com.binrock.sqlutil.impl.SQLUtil;
 
 public class SQLUtilFactory {
 
-    // todo: create enum for that
-    public static final boolean AUTOCOMMIT_ON = true;
-    public static final boolean AUTOCOMMIT_OFF = false;
+    public enum AutoCommit {ON, OFF}
 
     // todo: create enum for that
-    public static final boolean RWMODE_READONLY = true;
-    public static final boolean RWMODE_READWRITE = false;
+    public enum RWMode {READONLY, READWRITE}
 
     // create with a Connection
     public static SQLUtilInterface createSQLUtil(Connection con) throws SQLException {
-        return createSQLUtil(con, AUTOCOMMIT_ON, Connection.TRANSACTION_READ_COMMITTED);
+        return createSQLUtil(con, AutoCommit.ON, Connection.TRANSACTION_READ_COMMITTED);
     }
 
-    public static SQLUtilInterface createSQLUtil(Connection con, boolean doAutoCommit,
+    // txIsolationLevel: see Connection.TRANSACTION_*
+    public static SQLUtilInterface createSQLUtil(Connection con, AutoCommit autoCommit,
             int txIsolationLevel) throws SQLException {
         SQLUtilInterface sql = new SQLUtil(con); //FIXME: generic classes shouldnt access impl classes
-        sql.getConnection().setAutoCommit(doAutoCommit);
+        if (autoCommit==AutoCommit.OFF)
+            sql.getConnection().setAutoCommit(false);
+        else
+            sql.getConnection().setAutoCommit(true);
         sql.getConnection().setTransactionIsolation(txIsolationLevel);
         return sql;
     }
@@ -38,11 +39,19 @@ public class SQLUtilFactory {
     }
 
     // full control over the created connection
+    // txIsolationLevel: see Connection.TRANSACTION_*
     public static SQLUtilInterface createSQLUtil(String jdbc, String user, String password,
-            boolean readOnly, boolean doAutoCommit, int txIsolationLevel) throws SQLException {
+            RWMode rwmode, AutoCommit autoCommit, int txIsolationLevel) throws SQLException {
         SQLUtilInterface sql = null;
         sql = createSQLUtil(jdbc, user, password);
-        sql.getConnection().setAutoCommit(doAutoCommit);
+        if (rwmode==RWMode.READWRITE)
+            sql.getConnection().setReadOnly(false);
+        else
+            sql.getConnection().setReadOnly(true);
+        if (autoCommit==AutoCommit.OFF)
+            sql.getConnection().setAutoCommit(false);
+        else
+            sql.getConnection().setAutoCommit(true);
         sql.getConnection().setTransactionIsolation(txIsolationLevel);
         return sql;
     }

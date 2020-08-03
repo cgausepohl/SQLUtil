@@ -312,4 +312,9 @@ public interface SQLUtilInterface {
     // sqlContains: if !=null only summarize where sql contains sqlContains (case insensitive)
     	public void printExecutionStatistcsSummary(PrintStream out, int level, String sqlContains);
     	*/
+    
+    /*
+     * return the last exec time in ms
+     */
+    long getLastExecMs();
 }

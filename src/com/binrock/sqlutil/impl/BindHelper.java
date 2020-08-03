@@ -7,6 +7,8 @@ import java.sql.SQLException;
 import java.sql.Types;
 import java.util.Calendar;
 
+import com.binrock.sqlutil.SQLUtilInterface.DBProduct;
+
 public final class BindHelper {
 
     public static PreparedStatement bindString(PreparedStatement ps, int pos, String val)
@@ -246,7 +248,7 @@ public final class BindHelper {
     }
 
     protected static void bindVariables(PreparedStatement ps, Object[] bindVariables,
-            int[] bindTypes, Calendar calendar) throws SQLException {
+            int[] bindTypes, Calendar calendar, DBProduct dbProduct) throws SQLException {
         // try to be lazy
         if (bindVariables == null || bindVariables.length == 0)
             return;
@@ -326,7 +328,19 @@ public final class BindHelper {
                 bindBlob(ps, pos, (java.sql.Blob) val);
                 break;
             default:
-                throw new IllegalArgumentException(
+            	/*	
+                // all special or dependent values....	
+               boolean ok = false;	
+               if (dbProduct == DBProduct.POSTGRESQL) {	
+               	// JSON	
+               	if (sqltype==1111) {	
+                       bindString(ps, pos, (String) val);	
+                       ok = true;	
+               	}	
+               }	
+               if (!ok)	
+                */
+            	throw new IllegalArgumentException(
                         "unmatched value bindTypes[" + n + "], value=" + bindTypes[n]);
             }
         }

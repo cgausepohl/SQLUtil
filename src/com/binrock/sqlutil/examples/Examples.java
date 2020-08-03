@@ -42,14 +42,14 @@ public class Examples {
         sql.executeDML("insert into SQLUTIL_EXAMPLE (id,d) values (" + id + ",to_date('" + d
                 + "','YYYY-MM-DD'))");
         // all bind variables are !=null, with varargs
-        sql.executeDMLVarArgs("insert into SQLUTIL_EXAMPLE (id,d) values (?,?)", new Long(2),
+        sql.executeDMLVarArgs("insert into SQLUTIL_EXAMPLE (id,d) values (?,?)", Long.valueOf(2),
                 new java.util.Date());
         // all bind variables are !=null, with array
-        Object[] values = { new Long(3), new java.util.Date() };
+        Object[] values = { Long.valueOf(3), new java.util.Date() };
         sql.executeDML("insert into SQLUTIL_EXAMPLE (id,d) values (?,?)", values);
         // nullable values needs type-mapping
         int[] sqltypes = { Types.BIGINT, Types.DATE };
-        Object[] valuesWithNull = { new Long(4), null };
+        Object[] valuesWithNull = { Long.valueOf(4), null };
         sql.executeDML("insert into SQLUTIL_EXAMPLE (id,d) values (?,?)", valuesWithNull, sqltypes);
     }
 
@@ -104,7 +104,7 @@ public class Examples {
         DateFormat df = DateFormat.getInstance();
         for (int i = 0; i < 100000; i++) {
             Object[] row = new Object[3];
-            row[0] = new Long(i);
+            row[0] = Long.valueOf(i);
             Date d = new Date(System.currentTimeMillis());
             row[1] = d;
             // sometimes null
@@ -131,7 +131,7 @@ public class Examples {
             // sometimes null
             if (i % 3 != 0)
                 row[1] = df.format(d) + " - " + row[0];
-            row[2] = new Long(i);
+            row[2] = Long.valueOf(i);
             batchValues.add(row);
         }
         int[] bindTypes = { Types.DATE, Types.VARCHAR, Types.BIGINT };

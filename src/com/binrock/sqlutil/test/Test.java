@@ -16,6 +16,8 @@ import com.binrock.sqlutil.AuditInterface.UseBatchInserts;
 import com.binrock.sqlutil.AuditInterface.UseCurrentThread;
 import com.binrock.sqlutil.Row;
 import com.binrock.sqlutil.SQLUtilFactory;
+import com.binrock.sqlutil.SQLUtilFactory.AutoCommit;
+import com.binrock.sqlutil.SQLUtilFactory.RWMode;
 import com.binrock.sqlutil.SQLUtilInterface;
 
 public class Test {
@@ -29,7 +31,7 @@ public class Test {
     // expecting a postgres-db with user sqlutil and password SQLutil$1
     // tables and data will be set up during this test
     public static void main(String[] args) throws SQLException, InterruptedException {
-        //new Test().testAll("jdbc:postgresql://localhost/sqlutil", "sqlutil", "sqlutil");
+        new Test().testAll("jdbc:postgresql://localhost/sqlutil", "sqlutil", "sqlutil");
         //new Test().testAll("jdbc:sqlserver://192.168.188.79:1433;databaseName=TEST", "sqlutil", "sqlutil");
         //new Test().testAll("jdbc:oracle:thin:@192.168.188.79:1521/xe", "sqlutil", "sqlutil");
         // TODO reduce options
@@ -43,8 +45,7 @@ public class Test {
         long programStarted = System.currentTimeMillis();
         try {
             sql = SQLUtilFactory.createSQLUtil(jdbc, user, password,
-                    SQLUtilFactory.RWMODE_READWRITE, SQLUtilFactory.AUTOCOMMIT_ON,
-                    Connection.TRANSACTION_READ_COMMITTED);
+                    RWMode.READWRITE, AutoCommit.ON, Connection.TRANSACTION_READ_COMMITTED);
             System.out.println("DBProduct " + sql.getDBProduct() + " " + jdbc);
 
             TestDB testDB;
@@ -220,9 +221,9 @@ public class Test {
                     + "v_varchar100, v_char10, v_text"
                     + ") values(/*ints*/?,?,?,?,?,  /*floats*/?,?,?,?,  /*date/times*/?,?,?,?,  /*bool,bytea*/?,?, /*strings*/?,?,?)";
             if (i % 2 == 0) {
-                sql.executeDMLVarArgs(insertStmt, new Integer(i), new Integer(i), new Integer(i),
-                        new BigDecimal(i), new BigDecimal(i), new Float(1), new Double(2),
-                        new BigDecimal(4), new Float(4), new Date(),
+                sql.executeDMLVarArgs(insertStmt, Integer.valueOf(i), Integer.valueOf(i), Integer.valueOf(i),
+                        BigDecimal.valueOf(i), BigDecimal.valueOf(i), Float.valueOf(1), Double.valueOf(2),
+                        BigDecimal.valueOf(4), Float.valueOf(4), new Date(),
                         new java.sql.Time(new Date().getTime()),
                         new java.sql.Timestamp(new Date().getTime()),
                         new java.sql.Timestamp(new Date().getTime()), Boolean.TRUE, Test.bytea(),
@@ -243,7 +244,7 @@ public class Test {
             Test.test(new BigDecimal(Test.ROWSCREATE).equals(bd), "init test 2");
             //pg String str = sql.getString("select cast(count(*)as text) from sqlutil_data");
             String str = sql.getString("select count(*) from sqlutil_data");
-            Test.test(new Long(Test.ROWSCREATE).toString().equals(str), "init test 3");
+            Test.test(Long.valueOf(Test.ROWSCREATE).toString().equals(str), "init test 3");
         }
         Row[] fullData = sql
                 .getRows("select v_integer,v_smallint,v_int,v_serial,v_numeric18,v_numeric38,"// 1

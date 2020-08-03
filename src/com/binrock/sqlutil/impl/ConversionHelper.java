@@ -28,13 +28,13 @@ public final class ConversionHelper {
         if (o instanceof BigDecimal)
             return ((BigDecimal) o).longValue();
         if (o instanceof Integer)
-            return new Long((Integer) o);
+            return Long.valueOf((Integer) o);
         if (o instanceof Short)
-            return new Long((Short) o);
+            return Long.valueOf((Short) o);
         if (o instanceof Byte)
-            return new Long((Byte) o);
+            return Long.valueOf((Byte) o);
         if (o instanceof String)
-            return new Long((String) o);
+            return Long.valueOf((String) o);
         else
             throw new IllegalArgumentException(
                     "cannot convert class " + o.getClass().getName() + " to Long");
@@ -81,19 +81,19 @@ public final class ConversionHelper {
         else if (o instanceof Double)
             d = (Double) o;
         else if (o instanceof Float)
-            d = new Double((Float) o);
+            d = Double.valueOf((Float) o);
         else if (o instanceof BigDecimal)
             d = ((BigDecimal) o).doubleValue();
         else if (o instanceof Long)
-            d = new Double((Long) o);
+            d = Double.valueOf((Long) o);
         else if (o instanceof Byte)
-            d = new Double((Byte) o);
+            d = Double.valueOf((Byte) o);
         else if (o instanceof Integer)
-            d = new Double((Integer) o);
+            d = Double.valueOf((Integer) o);
         else if (o instanceof Short)
-            d = new Double((Short) o);
+            d = Double.valueOf((Short) o);
         else if (o instanceof String)
-            d = new Double((String) o);
+            d = Double.valueOf((String) o);
         else
             throw new IllegalArgumentException(
                     "cannot convert class " + o.getClass().getName() + " to Double");
@@ -134,7 +134,7 @@ public final class ConversionHelper {
         return arr;
     }
 
-    public static Timestamp[] toTimestamps(Row[] rows) {
+    public static java.sql.Timestamp[] toTimestamps(Row[] rows) {
         Timestamp[] arr = new Timestamp[rows == null ? 0 : rows.length];
         if (rows == null)
             return arr;
@@ -158,7 +158,7 @@ public final class ConversionHelper {
         return arr;
     }
 
-    public static Timestamp toTimestamp(Object o) {
+    public static java.sql.Timestamp toTimestamp(Object o) {
         Timestamp ts;
         if (o == null)
             ts = null;

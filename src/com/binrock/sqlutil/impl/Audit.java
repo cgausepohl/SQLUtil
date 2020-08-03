@@ -119,7 +119,7 @@ public class Audit implements AuditInterface {
                 while (sqls.hasMoreElements()) {
                     // "insert into sqlutil_audit_sql(sql_id,appid,created,sql_text)values(?,?,?,?)"
                     String sqlText = sqls.nextElement();
-                    Long sqlId = new Long(System.nanoTime());
+                    Long sqlId = Long.valueOf(System.nanoTime());
                     Object[] bindValuesSQL = { sqlId, appId,
                             new Timestamp(System.currentTimeMillis()), sqlText };
                     sql.executeDML(insertStmtSQL, bindValuesSQL, bindTypesSQL);
@@ -141,7 +141,7 @@ public class Audit implements AuditInterface {
                 Enumeration<String> sqls = getAuditRecords().keys();
                 while (sqls.hasMoreElements()) {
                     String sqlText = sqls.nextElement();
-                    Long sqlId = new Long(System.nanoTime());
+                    Long sqlId = Long.valueOf(System.nanoTime());
                     Object[] rowInsertSQL = { sqlId, appId,
                             new Timestamp(System.currentTimeMillis()), sqlText };
                     bindValuesSQL.add(rowInsertSQL);
