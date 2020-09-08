@@ -1,10 +1,15 @@
-package com.binrock.sqlutil;
+/*
+ * Author Christian Gausepohl
+ * License: CC0 (no copyright if possible, otherwise fallback to public domain)
+ * https://github.com/cgausepohl/SQLUtil
+ */
+package com.cg.sqlutil;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 
-import com.binrock.sqlutil.impl.SQLUtil;
+import com.cg.sqlutil.impl.SQLUtil;
 
 public class SQLUtilFactory {
 
@@ -44,14 +49,8 @@ public class SQLUtilFactory {
             RWMode rwmode, AutoCommit autoCommit, int txIsolationLevel) throws SQLException {
         SQLUtilInterface sql = null;
         sql = createSQLUtil(jdbc, user, password);
-        if (rwmode==RWMode.READWRITE)
-            sql.getConnection().setReadOnly(false);
-        else
-            sql.getConnection().setReadOnly(true);
-        if (autoCommit==AutoCommit.OFF)
-            sql.getConnection().setAutoCommit(false);
-        else
-            sql.getConnection().setAutoCommit(true);
+        sql.getConnection().setReadOnly(rwmode!=RWMode.READWRITE);
+        sql.getConnection().setAutoCommit(autoCommit!=AutoCommit.OFF);
         sql.getConnection().setTransactionIsolation(txIsolationLevel);
         return sql;
     }

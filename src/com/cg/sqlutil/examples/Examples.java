@@ -1,4 +1,9 @@
-package com.binrock.sqlutil.examples;
+/*
+ * Author Christian Gausepohl
+ * License: CC0 (no copyright if possible, otherwise fallback to public domain)
+ * https://github.com/cgausepohl/SQLUtil
+ */
+package com.cg.sqlutil.examples;
 
 import java.sql.Date;
 import java.sql.SQLException;
@@ -8,9 +13,9 @@ import java.text.DateFormat;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.binrock.sqlutil.Row;
-import com.binrock.sqlutil.SQLUtilFactory;
-import com.binrock.sqlutil.SQLUtilInterface;
+import com.cg.sqlutil.Row;
+import com.cg.sqlutil.SQLUtilFactory;
+import com.cg.sqlutil.SQLUtilInterface;
 
 public class Examples {
 
@@ -149,10 +154,9 @@ public class Examples {
     public static void main(String[] args) throws SQLException {
         SQLUtilInterface sql = null;
         try {
-            sql = SQLUtilFactory.createSQLUtil("jdbc:postgresql://localhost/sqlutil", "sqlutil",
-                    "sqlutil");
+            sql = SQLUtilFactory.createSQLUtil("jdbc:postgresql://localhost/db", "usr", "passwd");
             /* // if you already have a connection or need a special initialization:
-             * Connection con = DriverManager.getConnection("jdbc:postgresql://localhost/sqlutil", "sqlutil", "sqlutil");
+             * Connection con = DriverManager.getConnection("jdbc:postgresql://localhost/db", "usr", "passwd");
              * sql = SQLUtilFactory.createSQLUtil(con);
              */
             getStringExample(sql);

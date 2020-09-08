@@ -1,4 +1,9 @@
-package com.binrock.sqlutil.impl;
+/*
+ * Author Christian Gausepohl
+ * License: CC0 (no copyright if possible, otherwise fallback to public domain)
+ * https://github.com/cgausepohl/SQLUtil
+ */
+package com.cg.sqlutil.impl;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;

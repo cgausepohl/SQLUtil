@@ -1,4 +1,9 @@
-package com.binrock.sqlutil;
+/*
+ * Author Christian Gausepohl
+ * License: CC0 (no copyright if possible, otherwise fallback to public domain)
+ * https://github.com/cgausepohl/SQLUtil
+ */
+package com.cg.sqlutil;
 
 import java.io.PrintStream;
 import java.math.BigDecimal;
@@ -9,7 +14,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.Calendar;
-import java.util.Hashtable;
 import java.util.List;
 
 /**
@@ -140,7 +144,7 @@ public interface SQLUtilInterface {
 
     Row getRow(String selectStmt, Object[] bindVariables) throws SQLException;
 
-    Row getRow(Hashtable<String, Integer> columnMap, String selectStmt,
+    Row getRow(/* why columnmap here?Hashtable<String, Integer> columnMap, */String selectStmt,
             final Object[] bindVariables, final int[] bindTypes) throws SQLException;
 
     // Complete ResultSets
@@ -152,9 +156,12 @@ public interface SQLUtilInterface {
 
     Row[] getRows(String selectStmt, Object[] bindVariables) throws SQLException;
 
+    Row[] getRows(String selectStmt, final Object[] bindVariables, final int[] bindTypes) throws SQLException;
+    /* why columnMap here?
     Row[] getRows(Hashtable<String, Integer> columnMap, String selectStmt,
             final Object[] bindVariables, final int[] bindTypes) throws SQLException;
-
+	*/
+    
     // Fetch ResultSet in multiple Chunks
     // Returns an array of Row. Order of call: batchPrepare, while ((rows=batchGetRows())!=null), batchClose
     //

@@ -1,11 +1,16 @@
-package com.binrock.sqlutil.impl;
+/*
+ * Author Christian Gausepohl
+ * License: CC0 (no copyright if possible, otherwise fallback to public domain)
+ * https://github.com/cgausepohl/SQLUtil
+ */
+package com.cg.sqlutil.impl;
 
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.util.Hashtable;
 import java.util.List;
 
-import com.binrock.sqlutil.Row;
+import com.cg.sqlutil.Row;
 
 public final class ConversionHelper {
 
@@ -200,6 +205,7 @@ public final class ConversionHelper {
     }
 
     public static String toRaw(Object object) {
+    	// may be byte[]
         throw new IllegalStateException("not implemented");
     }
 

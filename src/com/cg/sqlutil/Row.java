@@ -1,4 +1,9 @@
-package com.binrock.sqlutil;
+/*
+ * Author Christian Gausepohl
+ * License: CC0 (no copyright if possible, otherwise fallback to public domain)
+ * https://github.com/cgausepohl/SQLUtil
+ */
+package com.cg.sqlutil;
 
 import java.io.StringReader;
 import java.math.BigDecimal;
@@ -9,16 +14,16 @@ import javax.json.Json;
 import javax.json.JsonObject;
 import javax.json.JsonReader;
 
-import com.binrock.sqlutil.impl.ConversionHelper;
+import com.cg.sqlutil.impl.ConversionHelper;
 
 public class Row {
 
     private Object[] data;
-    private Hashtable<String, Integer> columnIndices;
+    private Hashtable<String, Integer> columnNames;
 
-    public Row(Object[] data, final Hashtable<String, Integer> columnIndices) {
+    public Row(Object[] data, final Hashtable<String, Integer> columnNames) {
         this.data = data;
-        this.columnIndices = columnIndices;
+        this.columnNames = columnNames;
     }
 
     public Object[] getData() {
@@ -30,7 +35,7 @@ public class Row {
     }
 
     public Object get(String column) {
-        return get(columnIndices.get(column));
+        return get(columnNames.get(column));
     }
 
     public Boolean getBoolean(int idx) {
@@ -38,7 +43,7 @@ public class Row {
     }
 
     public Boolean getBoolean(String column) {
-        return getBoolean(columnIndices.get(column));
+        return getBoolean(columnNames.get(column));
     }
 
     public Long getLong(int idx) {
@@ -46,7 +51,7 @@ public class Row {
     }
 
     public Long getLong(String column) {
-        return getLong(columnIndices.get(column));
+        return getLong(columnNames.get(column));
     }
 
     public Timestamp getTimestamp(int idx) {
@@ -54,7 +59,7 @@ public class Row {
     }
 
     public Timestamp getTimestamp(String column) {
-        return getTimestamp(columnIndices.get(column));
+        return getTimestamp(columnNames.get(column));
     }
 
     public BigDecimal getBigDecimal(int idx) {
@@ -62,7 +67,7 @@ public class Row {
     }
 
     public BigDecimal getBigDecimal(String column) {
-        return getBigDecimal(columnIndices.get(column));
+        return getBigDecimal(columnNames.get(column));
     }
 
     public Double getDouble(int idx) {
@@ -70,7 +75,7 @@ public class Row {
     }
 
     public Double geDouble(String column) {
-        return getDouble(columnIndices.get(column));
+        return getDouble(columnNames.get(column));
     }
 
     public String getString(int idx) {
@@ -78,7 +83,7 @@ public class Row {
     }
 
     public String getString(String column) {
-        return getString(columnIndices.get(column));
+        return getString(columnNames.get(column));
     }
 
     //public Hashtable<String, String> getI18nStrings(int idx) {
@@ -106,7 +111,7 @@ public class Row {
     }
 
     public String getRaw(String column) {
-        return getString(columnIndices.get(column));
+        return getString(columnNames.get(column));
     }
 
     public Integer getInt(int idx) {
@@ -114,7 +119,7 @@ public class Row {
     }
 
     public Integer getInt(String column) {
-        return getInt(columnIndices.get(column));
+        return getInt(columnNames.get(column));
     }
 
     public JsonObject getJson(int idx) {
@@ -128,7 +133,7 @@ public class Row {
     }
 
     public JsonObject getJson(String column) {
-        return getJson(columnIndices.get(column));
+        return getJson(columnNames.get(column));
     }
 
 }

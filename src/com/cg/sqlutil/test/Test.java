@@ -1,4 +1,9 @@
-package com.binrock.sqlutil.test;
+/*
+ * Author Christian Gausepohl
+ * License: CC0 (no copyright if possible, otherwise fallback to public domain)
+ * https://github.com/cgausepohl/SQLUtil
+ */
+package com.cg.sqlutil.test;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -11,14 +16,14 @@ import java.util.Date;
 import java.util.List;
 import java.util.Random;
 
-import com.binrock.sqlutil.AuditInterface.StoreBindVariables;
-import com.binrock.sqlutil.AuditInterface.UseBatchInserts;
-import com.binrock.sqlutil.AuditInterface.UseCurrentThread;
-import com.binrock.sqlutil.Row;
-import com.binrock.sqlutil.SQLUtilFactory;
-import com.binrock.sqlutil.SQLUtilFactory.AutoCommit;
-import com.binrock.sqlutil.SQLUtilFactory.RWMode;
-import com.binrock.sqlutil.SQLUtilInterface;
+import com.cg.sqlutil.Row;
+import com.cg.sqlutil.SQLUtilFactory;
+import com.cg.sqlutil.SQLUtilInterface;
+import com.cg.sqlutil.AuditInterface.StoreBindVariables;
+import com.cg.sqlutil.AuditInterface.UseBatchInserts;
+import com.cg.sqlutil.AuditInterface.UseCurrentThread;
+import com.cg.sqlutil.SQLUtilFactory.AutoCommit;
+import com.cg.sqlutil.SQLUtilFactory.RWMode;
 
 public class Test {
 
@@ -31,11 +36,7 @@ public class Test {
     // expecting a postgres-db with user sqlutil and password SQLutil$1
     // tables and data will be set up during this test
     public static void main(String[] args) throws SQLException, InterruptedException {
-        new Test().testAll("jdbc:postgresql://localhost/sqlutil", "sqlutil", "sqlutil");
-        //new Test().testAll("jdbc:sqlserver://192.168.188.79:1433;databaseName=TEST", "sqlutil", "sqlutil");
-        //new Test().testAll("jdbc:oracle:thin:@192.168.188.79:1521/xe", "sqlutil", "sqlutil");
-        // TODO reduce options
-        //new Test().testAll("jdbc:mysql://localhost:3306/sqlutil?useUnicode=true&useJDBCCompliantTimezoneShift=true&useLegacyDatetimeCode=false&serverTimezone=UTC", "sqlutil", "sqlutil");
+        new Test().testAll(args[0], args[1], args[2]);
     }
 
     private void testAll(String jdbc, String user, String password)
@@ -63,11 +64,12 @@ public class Test {
                 testDB = new TestMySQL();
                 break;
             default:
-                testDB = null;
+            	testDB = null;
             }
 
             testDB.initSchema(sql, 'G');
             System.out.println("fill table, " + ROWSCREATE + " rows...");
+            
             createData(sql);
             // just to have it called once
             testDB.testRollback(sql);

@@ -1,4 +1,9 @@
-package com.binrock.sqlutil.impl;
+/*
+ * Author Christian Gausepohl
+ * License: CC0 (no copyright if possible, otherwise fallback to public domain)
+ * https://github.com/cgausepohl/SQLUtil
+ */
+package com.cg.sqlutil.impl;
 
 import java.io.PrintStream;
 import java.math.BigDecimal;
@@ -16,9 +21,9 @@ import java.util.Calendar;
 import java.util.Hashtable;
 import java.util.List;
 
-import com.binrock.sqlutil.AuditInterface;
-import com.binrock.sqlutil.Row;
-import com.binrock.sqlutil.SQLUtilInterface;
+import com.cg.sqlutil.AuditInterface;
+import com.cg.sqlutil.Row;
+import com.cg.sqlutil.SQLUtilInterface;
 
 public final class SQLUtil implements SQLUtilInterface {
 
@@ -579,32 +584,37 @@ public final class SQLUtil implements SQLUtilInterface {
         return getRows(selectStmt, bindVariables, null);
     }
 
-    public Row[] getRows(String selectStmt, Object[] bindVariables, int[] bindTypes)
-            throws SQLException {
-        return getRows(null, selectStmt, bindVariables, bindTypes);
-    }
-
     // getRow
     //
     @Override
     public Row getRowVarArgs(String selectStmt, Object... bindVariables) throws SQLException {
-        return getRow(null, selectStmt, bindVariables, null);
+        return getRow(selectStmt, bindVariables, null);
     }
 
     @Override
     public Row getRow(String selectStmt) throws SQLException {
-        return getRow(null, selectStmt, null, null);
+        return getRow(selectStmt, null, null);
     }
 
     @Override
     public Row getRow(String selectStmt, Object[] bindVariables) throws SQLException {
-        return getRow(null, selectStmt, bindVariables, null);
+        return getRow(selectStmt, bindVariables, null);
     }
 
+    /*
     @Override
+     why columnMap here?
     public Row getRow(Hashtable<String, Integer> columnMap, String selectStmt,
             Object[] bindVariables, int[] bindTypes) throws SQLException {
         Row[] rows = getRows(columnMap, selectStmt, bindVariables, bindTypes);
+        expectXRows(rows, 1);
+        return rows[0];
+    }
+    */
+
+    @Override
+    public Row getRow(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
+        Row[] rows = getRows(selectStmt, bindVariables, bindTypes);
         expectXRows(rows, 1);
         return rows[0];
     }
@@ -717,13 +727,13 @@ public final class SQLUtil implements SQLUtilInterface {
     }
 
     @Override
-    public Row[] getRows(Hashtable<String, Integer> columnMap, String selectStmt,
-            Object[] bindVariables, int[] bindTypes) throws SQLException {
+    public Row[] getRows(String selectStmt, Object[] bindVariables, int[] bindTypes) throws SQLException {
     	long t0 = System.currentTimeMillis();
         getAudit().startNewAuditRecord(selectStmt, bindVariables);
         PreparedStatement ps = null;
         ResultSet rs = null;
         ArrayList<Object[]> list = new ArrayList<>();
+        Hashtable<String, Integer> columnMap = new Hashtable<>();
         int rowCount = 0;
         try {
             // prepare, bind and execute
@@ -740,8 +750,7 @@ public final class SQLUtil implements SQLUtilInterface {
             for (int i = 1, n = 0; i <= colCount; i++, n++) {
                 resultTypes[n] = rs.getMetaData().getColumnType(i);
                 //System.out.println(n+":"+resultTypes[n]+":"+lastMetaData.getColumnClassName(i)+" "+lastMetaData.getColumnTypeName(i));
-                if (columnMap != null)
-                    columnMap.put(rs.getMetaData().getColumnLabel(i), n);
+                columnMap.put(rs.getMetaData().getColumnLabel(i), n);
             }
             if (expectedColumns != null && expectedColumns != colCount) {
                 throw new IllegalStateException(

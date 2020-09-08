@@ -1,4 +1,9 @@
-package com.binrock.sqlutil.impl;
+/*
+ * Author Christian Gausepohl
+ * License: CC0 (no copyright if possible, otherwise fallback to public domain)
+ * https://github.com/cgausepohl/SQLUtil
+ */
+package com.cg.sqlutil.impl;
 
 import java.io.PrintStream;
 import java.sql.SQLException;
@@ -10,11 +15,11 @@ import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
 
-import com.binrock.sqlutil.AuditInterface;
-import com.binrock.sqlutil.AuditRecord;
-import com.binrock.sqlutil.SQLUtilFactory;
-import com.binrock.sqlutil.SQLUtilInterface;
-import com.binrock.sqlutil.SQLUtilInterface.DBProduct;
+import com.cg.sqlutil.AuditInterface;
+import com.cg.sqlutil.AuditRecord;
+import com.cg.sqlutil.SQLUtilFactory;
+import com.cg.sqlutil.SQLUtilInterface;
+import com.cg.sqlutil.SQLUtilInterface.DBProduct;
 
 public class Audit implements AuditInterface {
 

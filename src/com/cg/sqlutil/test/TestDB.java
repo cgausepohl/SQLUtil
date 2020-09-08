@@ -1,8 +1,13 @@
-package com.binrock.sqlutil.test;
+/*
+ * Author Christian Gausepohl
+ * License: CC0 (no copyright if possible, otherwise fallback to public domain)
+ * https://github.com/cgausepohl/SQLUtil
+ */
+package com.cg.sqlutil.test;
 
 import java.sql.SQLException;
 
-import com.binrock.sqlutil.SQLUtilInterface;
+import com.cg.sqlutil.SQLUtilInterface;
 
 public interface TestDB {
     void initSchema(SQLUtilInterface sql, char mode) throws SQLException;

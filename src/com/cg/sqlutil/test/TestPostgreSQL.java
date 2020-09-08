@@ -1,28 +1,36 @@
-package com.binrock.sqlutil.test;
+/*
+ * Author Christian Gausepohl
+ * License: CC0 (no copyright if possible, otherwise fallback to public domain)
+ * https://github.com/cgausepohl/SQLUtil
+ */
+package com.cg.sqlutil.test;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 
-import com.binrock.sqlutil.SQLUtilInterface;
+import com.cg.sqlutil.Row;
+import com.cg.sqlutil.SQLUtilInterface;
 
 public class TestPostgreSQL implements TestDB {
 
     private static final String[] sqls = {
-            "select $col from sqlutil_data where $col is null limit 1", //0
-            "select $col from sqlutil_data where $col is not null limit 1", //1
-            "select $col from sqlutil_data where $col is null limit ?", //2
-            "select $col from sqlutil_data where $col is not null limit ?", //3
-            "select $col from sqlutil_data where $col is null limit ?", //4
-            "select $col from sqlutil_data where $col is not null limit ?", //5
-            "select $col from sqlutil_data where $col is null and (? is null or ?=v_serial) limit ?", //6
-            "select $col from sqlutil_data where $col is not null and (? is null or ?=v_serial) limit ?", //7
-            "select $col from sqlutil_data where $col is null limit 100", //8
-            "select $col from sqlutil_data where $col is null and v_serial>? limit 100", //9
-            "select $col from sqlutil_data where $col is null and v_serial>? limit 100", //10
-            "select $col from sqlutil_data where $col is null and (? is null or $col =?) and v_serial>? limit 100"//11
+            "select $col as X from sqlutil_data where $col is null limit 1", //0
+            "select $col as X from sqlutil_data where $col is not null limit 1", //1
+            "select $col as X from sqlutil_data where $col is null limit ?", //2
+            "select $col as X from sqlutil_data where $col is not null limit ?", //3
+            "select $col as X from sqlutil_data where $col is null limit ?", //4
+            "select $col as X from sqlutil_data where $col is not null limit ?", //5
+            "select $col as X from sqlutil_data where $col is null and (? is null or ?=v_serial) limit ?", //6
+            "select $col as X from sqlutil_data where $col is not null and (? is null or ?=v_serial) limit ?", //7
+            "select $col as X from sqlutil_data where $col is null limit 100", //8
+            "select $col as X from sqlutil_data where $col is null and v_serial>? limit 100", //9
+            "select $col as X from sqlutil_data where $col is null and v_serial>? limit 100", //10
+            "select $col as X from sqlutil_data where $col is null and (? is null or $col =?) and v_serial>? limit 100"//11
     };
+    
+    private static final String sqlSelect = "select 100 as XINT, 'hello' as XSTR";
 
     @Override
     public void initSchema(SQLUtilInterface sql, char mode) throws SQLException {
@@ -101,6 +109,15 @@ public class TestPostgreSQL implements TestDB {
         //select $col from sqlutil_data where $col is null and (? is null or $col =?) and v_serial>? limit 100
         ll = sql.getStrings(mySqls[++n], bindVars4, sqlTypes4);
         Test.test(ll != null && ll.length == 100, typ + n);
+        
+        // get Rows with indexes
+        Row[] row = sql.getRows(sqlSelect);
+        Test.test(row.length==1, sqlSelect+": getRows");
+        Test.test(row[0].getLong(0)==100L, sqlSelect+": col(0)==100");
+        Test.test("hello".equals(row[0].getString(1)), sqlSelect+": col(1)==hello");
+        Long l2 = row[0].getLong("xint");
+        Test.test(l2==100L, sqlSelect+": col(\"xint\")==100");
+        Test.test("hello".equals(row[0].getString("xstr")), sqlSelect+": col(\"xstr\")==hello");
     }
 
     @Override
