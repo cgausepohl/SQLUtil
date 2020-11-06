@@ -57,6 +57,9 @@ public interface SQLUtilInterface {
 
     void commitSilent();
 
+    // true: commit before close, false_ rollback before close, null: no action - default of underlying driver
+    void setCommitOnClose(Boolean doCommit);
+
     // undo all changes since last commit/rollback or connection-creation
     void rollback() throws SQLException;
 
@@ -161,7 +164,7 @@ public interface SQLUtilInterface {
     Row[] getRows(Hashtable<String, Integer> columnMap, String selectStmt,
             final Object[] bindVariables, final int[] bindTypes) throws SQLException;
 	*/
-    
+
     // Fetch ResultSet in multiple Chunks
     // Returns an array of Row. Order of call: batchPrepare, while ((rows=batchGetRows())!=null), batchClose
     //
@@ -319,7 +322,7 @@ public interface SQLUtilInterface {
     // sqlContains: if !=null only summarize where sql contains sqlContains (case insensitive)
     	public void printExecutionStatistcsSummary(PrintStream out, int level, String sqlContains);
     	*/
-    
+
     /*
      * return the last exec time in ms
      */

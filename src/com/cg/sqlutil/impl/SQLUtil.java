@@ -35,6 +35,7 @@ public final class SQLUtil implements SQLUtilInterface {
     private PrintStream stdout = System.out, stderr = System.err;
     private AuditInterface audit = new Audit();
     private long lastExecMs;
+    private Boolean closeOnCommit;
 
     // batch
     private ResultSet batchResultSet;
@@ -51,11 +52,12 @@ public final class SQLUtil implements SQLUtilInterface {
     public AuditInterface getAudit() {
         return audit;
     }
-    
+
+    @Override
     public long getLastExecMs() {
     	return lastExecMs;
     }
-    
+
     private void calculateExecTimeMs(long t0) {
     	lastExecMs = System.currentTimeMillis()-t0;
     }
@@ -148,11 +150,11 @@ public final class SQLUtil implements SQLUtilInterface {
 
     	long t0 = System.currentTimeMillis();
         // prepare, bind and execute, no autocommit and readonly are important to stream sql-data with postgres
-    	getConnection().setAutoCommit(false);	
+    	getConnection().setAutoCommit(false);
     	getConnection().setReadOnly(true);
     	batchPreparedStatement = getPreparedStatement(selectStmt);
         //FIXME?		batchPreparedStatement = BindHelper.bindVariables(batchPreparedStatement, null, null, getCalendar());
-    	batchPreparedStatement.setFetchSize(batchSize);	
+    	batchPreparedStatement.setFetchSize(batchSize);
         batchPreparedStatement.closeOnCompletion();
     	batchResultSet = batchPreparedStatement.executeQuery();
         batchResultSet.setFetchSize(fetchSize);
@@ -166,8 +168,8 @@ public final class SQLUtil implements SQLUtilInterface {
             // a little hack. SQL.INTEGER are mapped to java long. Java long must be mapped to SQL.BIGINT
             if (batchResultTypes[n] == Types.INTEGER)
                 batchResultTypes[n] = Types.BIGINT;
-            // JSON hack postgres	
-            if (getDBProduct()==DBProduct.POSTGRESQL && batchResultTypes[n] == 1111) 	
+            // JSON hack postgres
+            if (getDBProduct()==DBProduct.POSTGRESQL && batchResultTypes[n] == 1111)
                 batchResultTypes[n] = Types.VARCHAR;
         }
         if (expectedColumns != null && expectedColumns != batchColCount) {
@@ -184,7 +186,7 @@ public final class SQLUtil implements SQLUtilInterface {
 
     @Override
     public Row[] getChunksGetNextRows() throws SQLException {
-    	
+
     	long t0 = System.currentTimeMillis();
         if (batchResultSet == null || batchResultSet.isClosed())
             throw new SQLException(
@@ -268,12 +270,17 @@ public final class SQLUtil implements SQLUtilInterface {
     @Override
     public void closeConnection() {
         try {
-            // close alle dependent caches
+            // close all dependent caches
             if (lruStatementCache != null)
                 lruStatementCache.clear();
             Connection c = getConnection();
-            if (c != null && !c.isClosed())
+            if (c != null && !c.isClosed()) {
+                if (Boolean.TRUE.equals(closeOnCommit))
+                    c.commit();
+                else if (Boolean.FALSE.equals(closeOnCommit))
+                    c.rollback();
                 c.close();
+            }
             setConnection(null);
         } catch (SQLException ignore) {
             error("cannot close connection", ignore);
@@ -387,6 +394,12 @@ public final class SQLUtil implements SQLUtilInterface {
             error("cannot close ResultSet" + rs, ignore);
         }
     }
+
+    @Override
+    public void setCommitOnClose(Boolean doCommit) {
+        closeOnCommit = doCommit;
+    }
+
 
     @Override
     public void closeSilent(Statement stmt) {
